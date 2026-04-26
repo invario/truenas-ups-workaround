@@ -42,9 +42,25 @@ Some of this information is included as comments in the YAML already
 - On server restarts, you will receive a UPS communications lost error because the Docker container hasn't started yet. Once it starts up, the error will be cleared.
 - The Docker container publishes the NUT service on port 3493. TrueNAS's UPS service will connect to that. Do not change this.
 - The Docker container automatically creates a `upsmon` user for TrueNAS to use to connect. Do not change this.
-- Some UPS devices (like my APC) randomly disconnect/reconnect resulting in the USB Device ID changing. This option allows the container to dynamically update the USB device list (aka hotplug). If you don't experience this problem, you can safely comment it out.
+- Some UPS devices (like my APC) randomly disconnect/reconnect resulting in the USB Device ID changing. This option allows the container to dynamically update the USB device list (aka hotplug). If you don't experience this problem, you can safely comment it out. 
   ```
   device_cgroup_rules:
   - 'c 189:* rmw'
   ```
+  - If you do experience this disconnect problem, and your "major number" is not 189, you need to change it to the right number for your UPS. On your host, run `lsusb` to find your UPS. Sample output as follows:
+    ```
+    Bus 003 Device 013: ID 051d:0002 American Power Conversion Uninterruptible Power Supply
+    ```
+    This shows the UPS on Bus 3, Device 13. Run this command:
+    ```
+    cd /dev/bus/usb/003
+    ls -l
+    ```
+    Output should be similar to this:
+    ```
+    total 0
+    crw-rw-r-- 1 root root 189, 256 Apr 26 10:10 001
+    crw-rw-r-- 1 root nut  189, 268 Apr 26 17:21 013
+    ```
+    Note Device 013 (the second line) shows 189 for me.  You may have a different number. That is your "major number".
 - For TrueNAS GID 126 is the `nut` group and UID 125 is the `nut` user.  This container runs as root but changes to UID 568, which is the TrueNAS `apps` user, but uses GID 126 to ensure it can access the USB device.

@@ -40,7 +40,7 @@ Some of this information is included as comments in the YAML already
 - TrueNAS follows the Debian package repo for good reasons. Software in the repo is tested and vetted and is "stable". Getting a later version from the Github NUT repo can introduce bugs or other issues. **In other words, USE AT YOUR OWN RISK.**
 - My UPS is connected via USB and uses NUT's `usbups-hid` driver. I have only tested it using this. If your UPS is connected via some other way, this is not the workaround for you to use. Of course, you can still try it and undo your changes if you find issues.
 - On server restarts, you will receive a UPS communications lost error because the Docker container hasn't started yet. Once it starts up, the error will be cleared.
-- The Docker container publishes the NUT service on port 3493. TrueNAS's UPS service will connect to that. Do not change this.
+- The Docker container publishes the NUT service on port 3493. TrueNAS's UPS service will connect to that. Do not change this unless you change the setting in TrueNAS also.
 - The Docker container automatically creates a `upsmon` user for TrueNAS to use to connect. Do not change this.
 - Some UPS devices (like my APC) randomly disconnect/reconnect resulting in the USB Device ID changing. This option allows the container to dynamically update the USB device list (aka hotplug). If you don't experience this problem, you can safely comment it out. 
   ```

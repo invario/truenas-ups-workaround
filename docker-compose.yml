@@ -24,6 +24,7 @@
       build:
         dockerfile_inline: |
           FROM alpine:3.23
+          ARG NUT_VERSION=v2.8.5
           RUN apk add --no-cache --virtual .build-deps \
             git \
             python3 \
@@ -38,7 +39,7 @@
             libmodbus-dev \
             net-snmp-dev \
             neon-dev
-          RUN git clone https://github.com/networkupstools/nut /root/nut
+          RUN git clone --branch $${NUT_VERSION} https://github.com/networkupstools/nut /root/nut
           WORKDIR /root/nut
           RUN ./autogen.sh && \
             ./configure --build=x86_64-alpine-linux-musl --host=x86_64-alpine-linux-musl --prefix=/usr --libexecdir=/usr/lib/nut --without-wrap --with-user=nut --with-group=nut --disable-static --with-serial --with-usb --without-avahi --with-snmp --with-modbus --with-neon --without-powerman --without-ipmi --without-freeipmi --with-libltdl --without-cgi --with-drvpath=/usr/lib/nut --datadir=/usr/share/nut --sysconfdir=/etc/nut --with-statepath=/var/run/nut --with-altpidpath=/var/run/nut --with-udev-dir=/usr/lib/udev --with-nss --with-openss && \

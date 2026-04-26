@@ -26,52 +26,59 @@
           FROM alpine:3.23
           ARG NUT_VERSION=v2.8.5
           RUN apk add --no-cache --virtual .build-deps \
-            git \
-            python3 \
-            perl \
-            autoconf \
-            automake \
-            libtool \
-            g++ \
-            make \
-            libusb-dev \
-            nss-dev \
-            libmodbus-dev \
-            net-snmp-dev \
-            neon-dev
-          RUN git clone --branch $${NUT_VERSION} https://github.com/networkupstools/nut /root/nut
-          WORKDIR /root/nut
-          RUN ./autogen.sh && \
-            ./configure --build=x86_64-alpine-linux-musl --host=x86_64-alpine-linux-musl --prefix=/usr --libexecdir=/usr/lib/nut --without-wrap --with-user=nut --with-group=nut --disable-static --with-serial --with-usb --without-avahi --with-snmp --with-modbus --with-neon --without-powerman --without-ipmi --without-freeipmi --with-libltdl --without-cgi --with-drvpath=/usr/lib/nut --datadir=/usr/share/nut --sysconfdir=/etc/nut --with-statepath=/var/run/nut --with-altpidpath=/var/run/nut --with-udev-dir=/usr/lib/udev --with-nss --with-openss && \
+                  autoconf \
+                  automake \
+                  git \
+                  perl \
+                  python3 \
+                  libtool \
+                  g++ \
+                  libmodbus-dev \
+                  libusb-dev \
+                  make \
+                  neon-dev \
+                  net-snmp-dev \
+                  nss-dev && \
+            git clone --branch $${NUT_VERSION} https://github.com/networkupstools/nut /root/nut && \
+            cd /root/nut && \
+            ./autogen.sh && \
+            ./configure --build=x86_64-alpine-linux-musl --host=x86_64-alpine-linux-musl --prefix=/usr --libexecdir=/usr/lib/nut \
+              --without-wrap --with-user=nut --with-group=nut --disable-static --with-serial --with-usb --without-avahi --with-snmp \
+              --with-modbus --with-neon --without-powerman --without-ipmi --without-freeipmi --with-libltdl --without-cgi \
+              --with-drvpath=/usr/lib/nut --datadir=/usr/share/nut --sysconfdir=/etc/nut --with-statepath=/var/run/nut \
+              --with-altpidpath=/var/run/nut --with-udev-dir=/usr/lib/udev --with-nss --with-openss && \
             make -j "$(nproc)" all && \
             make install && \
-            mkdir /var/run/nut
-          RUN apk del --no-network .build-deps && rm -rf /root/nut
+            mkdir /var/run/nut && \
+            apk del --no-network .build-deps && \
+            rm -rf /root/nut
           RUN apk add \
-            eudev-libs \
-            libusb \
-            hidapi \
-            udev-init-scripts \
-            libeconf \
-            libblkid \
-            xz-libs \
-            zstd-libs \
-            kmod-libs \
-            eudev \
-            nut-udev \
-            udev-init-scripts-openrc \
-            libgcc \
-            libltdl \
-            libmodbus \
-            ca-certificates \
-            libexpat \
-            neon \
-            net-snmp-libs \
-            nspr \
-            sqlite-libs \
-            nss \
-            libstdc++
-          RUN addgroup -g 126 nut && adduser -H -s /sbin/nologin -u 568 -G nut -D nut && chown nut:nut /var/run/nut && chmod 770 /var/run/nut
+                  ca-certificates \
+                  eudev \
+                  eudev-libs \
+                  hidapi \
+                  kmod-libs \
+                  libblkid \
+                  libeconf \
+                  libexpat \
+                  libgcc \
+                  libltdl \
+                  libmodbus \
+                  libstdc++ \
+                  libusb \
+                  neon \
+                  net-snmp-libs \
+                  nspr \
+                  nss \
+                  nut-udev \
+                  sqlite-libs \
+                  udev-init-scripts \
+                  udev-init-scripts-openrc \
+                  xz-libs \
+                  zstd-libs
+          RUN addgroup -g 126 nut && adduser -H -s /sbin/nologin -u 568 -G nut -D nut && \
+            chown nut:nut /var/run/nut && \
+            chmod 770 /var/run/nut
           WORKDIR /root
           ENTRYPOINT ["/bin/sh", "-c", "/usr/sbin/upsdrvctl -u nut start && /usr/sbin/upsd -u nut -FF"]
         tags: 

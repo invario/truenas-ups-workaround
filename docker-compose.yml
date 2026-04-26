@@ -1,0 +1,114 @@
+  configs:
+    ups.conf:
+      content: |
+        [ups]
+        driver = usbhid-ups
+        # Documentation: https://networkupstools.org/docs/man/usbhid-ups.html#_extra_arguments
+        port = auto
+        desc = "ups"
+        lbrb_log_delay_without_calibrating = 1
+        onlinedischarge_calibration = 1
+        lbrb_log_delay_sec = 4
+    # 3493 is the default port and is what TrueNAS will look for, do not change it
+    upsd.conf:
+      content: |
+        LISTEN * 3493
+    # password and user here is required for TrueNAS to connect, add additional users if you need
+    upsd.users:
+      content: |
+        [upsmon]
+        password = ups12345
+        upsmon master
+  services:
+    nut:
+      build:
+        dockerfile_inline: |
+          FROM alpine:3.23
+          RUN apk add --no-cache --virtual .build-deps \
+            git \
+            python3 \
+            perl \
+            autoconf \
+            automake \
+            libtool \
+            g++ \
+            make \
+            libusb-dev \
+            nss-dev \
+            libmodbus-dev \
+            net-snmp-dev \
+            neon-dev
+          RUN git clone https://github.com/networkupstools/nut /root/nut
+          WORKDIR /root/nut
+          RUN ./autogen.sh && \
+            ./configure --build=x86_64-alpine-linux-musl --host=x86_64-alpine-linux-musl --prefix=/usr --libexecdir=/usr/lib/nut --without-wrap --with-user=nut --with-group=nut --disable-static --with-serial --with-usb --without-avahi --with-snmp --with-modbus --with-neon --without-powerman --without-ipmi --without-freeipmi --with-libltdl --without-cgi --with-drvpath=/usr/lib/nut --datadir=/usr/share/nut --sysconfdir=/etc/nut --with-statepath=/var/run/nut --with-altpidpath=/var/run/nut --with-udev-dir=/usr/lib/udev --with-nss --with-openss && \
+            make -j "$(nproc)" all && \
+            make install && \
+            mkdir /var/run/nut
+          RUN apk del --no-network .build-deps && rm -rf /root/nut
+          RUN apk add \
+            eudev-libs \
+            libusb \
+            hidapi \
+            udev-init-scripts \
+            libeconf \
+            libblkid \
+            xz-libs \
+            zstd-libs \
+            kmod-libs \
+            eudev \
+            nut-udev \
+            udev-init-scripts-openrc \
+            libgcc \
+            libltdl \
+            libmodbus \
+            ca-certificates \
+            libexpat \
+            neon \
+            net-snmp-libs \
+            nspr \
+            sqlite-libs \
+            nss \
+            libstdc++
+          RUN addgroup -g 126 nut && adduser -H -s /sbin/nologin -u 568 -G nut -D nut && chown nut:nut /var/run/nut && chmod 770 /var/run/nut
+          WORKDIR /root
+          ENTRYPOINT ["/bin/sh", "-c", "/usr/sbin/upsdrvctl -u nut start && /usr/sbin/upsd -u nut -FF"]
+        tags: 
+          - nut:truenas-workaround
+      configs:
+        - source: ups.conf
+          target: /etc/nut/ups.conf
+          uid: "0"
+          gid: "126"
+          mode: 0440
+        - source: upsd.conf
+          target: /etc/nut/upsd.conf
+          uid: "0"
+          gid: "126"
+          mode: 0440
+        - source: upsd.users
+          target: /etc/nut/upsd.users
+          uid: "0"
+          gid: "126"
+          mode: 0440
+      # Some UPS devices (like my APC) randomly disconnect/reconnect resulting in the USB Device ID changing.
+      # This option allows the container to dynamically update the USB device list (aka hotplug). If you don't
+      # experience this problem, you can safely comment it out.
+      device_cgroup_rules:
+        - 'c 189:* rmw'
+      image: nut:truenas-workaround
+      # Port 3493 is required to be published for the TrueNAS host to connect, do not change it
+      ports:
+        - host_ip: 0.0.0.0
+          mode: ingress
+          protocol: tcp
+          published: 3493
+          target: 3493
+      restart: unless-stopped
+      # Run as root initially with GID 126 (nut).
+      user: '0:126'
+      volumes:
+        - source: /dev/bus/usb
+          target: /dev/bus/usb
+          type: bind
+

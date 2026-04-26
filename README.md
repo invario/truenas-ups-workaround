@@ -28,7 +28,7 @@ Installation is simple and completely reversible.
 
  1. Go to Services on your TrueNAS GUI and stop the TrueNAS UPS service: <img width="245" height="48" alt="image" src="https://github.com/user-attachments/assets/ad08604a-5587-46cd-b180-7edc240a6c7d" />
  2. Go to Apps on your TrueNAS GUI, and click Discover Apps, and then press the 3 dots for more options to Install via YAML: <img width="193" height="119" alt="image" src="https://github.com/user-attachments/assets/49ff37a2-84c2-4150-8820-59751371d460" />
- 3. Name your app ('nut' is fine), and paste the contents of the YAML file in the space.
+ 3. Name your app ('nut' is fine), and paste the contents of the [YAML file](https://github.com/invario/truenas-ups-workaround/blob/master/docker-compose.yml) in the space.
  4. Tweak the YAML if necessary and if you know what you're doing, but it should run fine as it is.
  5. Press the "Save" button and wait. This will take a while since it is downloading and building NUT from scratch.
  6. Once it is complete, go back to the TrueNAS UPS service and edit the settings as such: <img width="375" height="241" alt="image" src="https://github.com/user-attachments/assets/abc7ed0b-d3af-4cae-93c6-44594c6823df" />

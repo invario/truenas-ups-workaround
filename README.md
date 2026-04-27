@@ -1,4 +1,4 @@
-Docker Compose YAML intended to be used with TrueNAS Scale/CE as a workaround for users experiencing false "replace battery" UPS alerts stemming from an outdated version of NUT. I am currently running this on TrueNAS CE v25.10.3 with my APC BVK750M2 connected via USB.
+Docker Compose YAML intended to be used with TrueNAS Scale/CE as a workaround for users experiencing false "replace battery" UPS alerts stemming from an outdated version of NUT. I am currently running this on TrueNAS CE v25.10.3 with my APC BVK750M2 connected via USB. If you're using a UPS that is not connected via USB, or you're not getting these false alerts, **this is not for you.**
 
 ## What's The Problem?
 

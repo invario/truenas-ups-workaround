@@ -64,3 +64,6 @@ Some of this information is included as comments in the YAML already
     ```
     Note Device 013 (the second line) shows 189 for me.  You may have a different number. That is your "major number".
 - For TrueNAS GID 126 is the `nut` group and UID 125 is the `nut` user.  This container runs as root but changes to UID 568, which is the TrueNAS `apps` user, but uses GID 126 to ensure it can access the USB device.
+
+## Known Issues
+1. Cannot powerdown/shutdown the UPS because the Docker container will already be shutdown when TrueNAS performs a shutdown, and only the "master" NUT instance can send the shutdown command to the UPS.

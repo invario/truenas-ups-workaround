@@ -23,6 +23,8 @@
   services:
     nut:
       build:
+        # If you change the version here, be sure to change the version below (Image:) Otherwise,
+        # it will not rebuild
         dockerfile_inline: |
           FROM alpine:3.23
           ARG NUT_VERSION=v2.8.5
@@ -82,8 +84,6 @@
             chmod 770 /var/run/nut
           WORKDIR /root
           ENTRYPOINT ["/bin/sh", "-c", "/usr/sbin/upsdrvctl -u nut start && /usr/sbin/upsd -u nut -FF"]
-        tags: 
-          - nut:truenas-workaround
       configs:
         - source: ups.conf
           target: /etc/nut/ups.conf
@@ -107,7 +107,7 @@
       # to find the right number.
       device_cgroup_rules:
         - 'c 189:* rmw'
-      image: nut:truenas-workaround
+      image: nut:truenas-workaround-2.8.5
       # Port 3493 is required to be published for the TrueNAS host to connect, do not change it
       ports:
         - host_ip: 0.0.0.0

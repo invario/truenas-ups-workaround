@@ -9,11 +9,12 @@
         lbrb_log_delay_without_calibrating = 1
         onlinedischarge_calibration = 1
         lbrb_log_delay_sec = 4
-    # 3493 is the default port and is what TrueNAS will look for, do not change it
+    # 3493 is the default port for TrueNAS to connect to NUT, ensure it matches your setting
     upsd.conf:
       content: |
         LISTEN * 3493
-    # password and user here is required for TrueNAS to connect, add additional users if you need
+    # password and user required for TrueNAS to connect, ensure it matches your settings and 
+    # add additional users if you desired
     upsd.users:
       content: |
         [upsmon]
@@ -101,7 +102,9 @@
           mode: 0440
       # Some UPS devices (like my APC) randomly disconnect/reconnect resulting in the USB Device ID changing.
       # This option allows the container to dynamically update the USB device list (aka hotplug). If you don't
-      # experience this problem, you can safely comment it out.
+      # experience this problem, you can safely comment it out. If 189 is not the correct "major" number for you and
+      # you do get disconnect/reconnects, see https://github.com/invario/truenas-ups-workaround#additional-info 
+      # to find the right number.
       device_cgroup_rules:
         - 'c 189:* rmw'
       image: nut:truenas-workaround

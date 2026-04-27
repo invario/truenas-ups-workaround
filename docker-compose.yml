@@ -45,7 +45,7 @@
             git clone --branch $${NUT_VERSION} https://github.com/networkupstools/nut /root/nut && \
             cd /root/nut && \
             ./autogen.sh && \
-            ./configure --build=x86_64-alpine-linux-musl --host=x86_64-alpine-linux-musl --prefix=/usr --libexecdir=/usr/lib/nut \
+            ./configure --prefix=/usr --libexecdir=/usr/lib/nut \
               --without-wrap --with-user=nut --with-group=nut --disable-static --with-serial --with-usb --without-avahi --with-snmp \
               --with-modbus --with-neon --without-powerman --without-ipmi --without-freeipmi --with-libltdl --without-cgi \
               --with-drvpath=/usr/lib/nut --datadir=/usr/share/nut --sysconfdir=/etc/nut --with-statepath=/var/run/nut \

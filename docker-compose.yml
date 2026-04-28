@@ -9,12 +9,12 @@
         lbrb_log_delay_without_calibrating = 1
         onlinedischarge_calibration = 1
         lbrb_log_delay_sec = 4
-    # 3493 is the default port for TrueNAS to connect to NUT, ensure it matches your setting
+    # upsd listens on 3493, leave this setting alone
     upsd.conf:
       content: |
         LISTEN * 3493
     # password and user required for TrueNAS to connect, ensure it matches your settings and 
-    # add additional users if you desired
+    # add additional users if you desire
     upsd.users:
       content: |
         [upsmon]
@@ -23,7 +23,7 @@
   services:
     nut:
       build:
-        # If you change the version here, be sure to change the version below (Image:) Otherwise,
+        # If you change NUT_VERSION here, also change the Image name (Image:) below. Otherwise,
         # it will not rebuild
         dockerfile_inline: |
           FROM alpine:3.23
@@ -107,19 +107,16 @@
       # to find the right number.
       device_cgroup_rules:
         - 'c 189:* rmw'
-      image: nut:truenas-workaround-2.8.5
-      # Port 3493 is required to be published for the TrueNAS host to connect, do not change it
+      image: nut:truenas-workaround-2.8.5   # Change this to match NUT_VERSION number
       ports:
         - host_ip: 0.0.0.0
           mode: ingress
           protocol: tcp
-          published: 3493
-          target: 3493
+          published: 3493   # Change this if you want a different port. Must match TrueNAS UPS service
+          target: 3493      # Leave this alone, upsd listens on 3493
       restart: unless-stopped
-      # Run as root initially with GID 126 (nut).
-      user: '0:126'
+      user: '0:126'   # Run as root initially with GID 126 (nut).
       volumes:
         - source: /dev/bus/usb
           target: /dev/bus/usb
           type: bind
-

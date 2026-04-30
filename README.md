@@ -1,4 +1,4 @@
-Docker Compose YAML intended to be used with TrueNAS Scale/CE as a workaround for users experiencing false "replace battery" UPS alerts stemming from an outdated version of NUT. I am currently running this on TrueNAS CE v25.10.3 with my APC BVK750M2 connected via USB. If you're using a UPS that is not connected via USB, or you're not getting these false alerts, **this is not for you.**
+Bash script builds NUT `usbhid-ups` and sets TrueNAS Scale/CE to use that instead for users experiencing false "replace battery" UPS alerts stemming from an outdated version of NUT. I am currently running this on TrueNAS CE v25.10.3 with my APC BVK750M2 connected via USB. If you're using a UPS that is not connected via USB, or you're not getting these false alerts, **this is not for you.**
 
 ## What's The Problem?
 
@@ -8,62 +8,33 @@ Docker Compose YAML intended to be used with TrueNAS Scale/CE as a workaround fo
 
 TrueNAS has closed the discussion on the topic and simply stated that they follow the version of NUT that is in the Debian package repo (which isn't an unreasonable position to have.) Since TrueNAS is on Debian 12 (Bookworm), this is NUT v2.8.0.  Once TrueNAS updates to Debian 13 (Trixie), NUT will follow but the version of NUT that would be included is still very outdated (v2.8.1-5)
 
-## The Old Workaround
-I won't get into the details, but the old workaround involved compiling a newer version of NUT, disabling rootfs protection on TrueNAS and clobbering the outdated NUT files with the new ones. This is bad for a couple of reasons, but mostly because:
+## My Solution
 
- 1. You're disabling safety checks. 🚨
- 2. You're messing with parts of TrueNAS that other parts may rely on and may have unintended effects (reporting /notification services, etc.) 😬
- 3. Every time you update TrueNAS, your changes are undone. 😖 
-
-## The Better Solution
-
- TrueNAS Scale/CE's UPS service allows you to switch it to "slave" mode, which makes it connect to a "master" instance of NUT. The workaround is to run a newer version of NUT in "master" mode within a Docker container, then let TrueNAS connect as a slave to the container. This is significantly better because:
+ Originally, my solution ran the new NUT version in a Docker container as a "master" and the TrueNAS UPS service connected to it as a "slave". This worked decently, but it still felt a bit clunky. Also, the workaround broke the ability to power off the UPS on a shutdown.
  
- 1. No safety checks disabled. 😌
- 2. No unforeseen consequences with TrueNAS's functionality. 🙊
- 3. Changes are retained across updates since it is Dockerized. 🎉
+ The current solution is much better. The part of NUT that causes the false alarms is the `usbhid-ups` driver which is simply one executable file. I wrote a Bash script that only needs to be run once and it does the following:
+ 
+ 1. Downloads a new version of NUT and builds the `usbhid-ups` driver, all inside a matching Debian Docker container (TrueNAS Scale/CE v25.10.3 is currently on Debian 12.11)
+ 2. Copy the `upshid-ups` driver into the directory specified on the command line
+ 3. Modifies the `/etc/nut/ups.conf` to include a line at the beginning for `driverpath=/YOUR_DIRECTORY_CHOICE` which allows NUT to load the new driver instead.
+ 4. Calls the TrueNAS API to add a POSTINIT entry that performs step #3 on every server restart since it will auto-revert. Note: if you make changes to your UPS settings and then save the settings, the `driverpath` modification to `/etc/nut/ups.conf` will also be lost.
+ 5. Reloads the UPS driver for you so you don't need to restart the server.
 
-## How Do I Use This?
-Installation is simple and completely reversible.
+## How Do I Install This?
 
- 1. Go to Services on your TrueNAS GUI and stop the TrueNAS UPS service: <img width="245" height="48" alt="image" src="https://github.com/user-attachments/assets/ad08604a-5587-46cd-b180-7edc240a6c7d" />
- 2. Go to Apps on your TrueNAS GUI, and click Discover Apps, and then press the 3 dots for more options to Install via YAML: <img width="193" height="119" alt="image" src="https://github.com/user-attachments/assets/49ff37a2-84c2-4150-8820-59751371d460" />
- 3. Name your app ('nut' is fine), and paste the contents of the [YAML file](https://github.com/invario/truenas-ups-workaround/blob/master/docker-compose.yml) in the space.
- 4. Tweak the YAML for correct username/password for the monitoring. For anything else, change only if know what you're doing, but it should run fine as it is.
- 5. Press the "Save" button and wait. This will take a while since it is downloading and building NUT from scratch.
- 6. Once it is complete, go back to the TrueNAS UPS service and edit the settings as such: <img width="375" height="241" alt="image" src="https://github.com/user-attachments/assets/abc7ed0b-d3af-4cae-93c6-44594c6823df" />
- 7. Start the UPS service.
- 8. That's it. Everything should work at this point!
-
-## Additional Info:
-Some of this information is included as comments in the YAML already
-- TrueNAS follows the Debian package repo for good reasons. Software in the repo is tested and vetted and is "stable". Getting a later version from the Github NUT repo can introduce bugs or other issues. **In other words, USE AT YOUR OWN RISK.**
-- My UPS is connected via USB and uses NUT's `usbups-hid` driver. I have only tested it using this. If your UPS is connected via some other way, this is not the workaround for you to use. Of course, you can still try it and undo your changes if you find issues.
-- On server restarts, you will receive a UPS communications lost error because the Docker container hasn't started yet. Once it starts up, the error will be cleared.
-- The Docker container publishes the NUT service on port 3493. TrueNAS's UPS service will connect to that. Make sure it matches the setting in the TrueNAS UPS service.
-- The Docker container automatically creates a `upsmon` user for TrueNAS to use to connect for monitoring. Make sure it matches the setting in the TrueNAS UPS service.
-- Some UPS devices (like my APC) randomly disconnect/reconnect resulting in the USB Device ID changing. This option allows the container to dynamically update the USB device list (aka hotplug). If you don't experience this problem, you can safely comment it out. 
-  ```
-  device_cgroup_rules:
-  - 'c 189:* rmw'
-  ```
-  - If you do experience this disconnect problem, and your "major number" is not 189, you need to change it to the right number for your UPS. On your host, run `lsusb` to find your UPS. Sample output as follows:
-    ```
-    Bus 003 Device 013: ID 051d:0002 American Power Conversion Uninterruptible Power Supply
-    ```
-    This shows the UPS on Bus 3, Device 13. Run this command:
-    ```
-    cd /dev/bus/usb/003
-    ls -l
-    ```
-    Output should be similar to this:
-    ```
-    total 0
-    crw-rw-r-- 1 root root 189, 256 Apr 26 10:10 001
-    crw-rw-r-- 1 root nut  189, 268 Apr 26 17:21 013
-    ```
-    Note Device 013 (the second line) shows 189 for me.  You may have a different number. That is your "major number".
-- For TrueNAS GID 126 is the `nut` group and UID 125 is the `nut` user.  This container runs as root but changes to UID 568, which is the TrueNAS `apps` user, but uses GID 126 to ensure it can access the USB device.
-
-## Known Issues
-1. Cannot powerdown/shutdown the UPS because the Docker container will already be shutdown when TrueNAS performs a shutdown, and only the "master" NUT instance can send the shutdown command to the UPS.
+ 1. SSH/Open a console to your TrueNAS server.
+ 2. Download the script somewhere and make it executable. `/root` is fine.
+ ```
+ curl -o truenas_ups_workaround.sh https://raw.githubusercontent.com/invario/truenas-ups-workaround/refs/heads/master/truenas_ups_workaround.sh
+ chmod 700 truenas_ups_workaround.sh
+ ```
+ 3. Select a directory you want to store the single `usbhid-ups` executable. I have a dataset on my own pool called `custom` to store custom stuff, so I made a `nut` subdirectory there.
+ 4. Run the script and specify the directory you picked in #3 above as the first and only command line parameter.
+ ```
+ ./truenas_ups_workaround.sh /mnt/MYPOOL/custom/nut
+ ```
+ 5. Follow the prompts. If the script detects a POSTINIT entry exists that matches the one it will generate, it will warn you, but still allow you to proceed. Make sure you remove any duplicate entries in your `TrueNAS->System->Advanced Settings->Init/Shutdown Scripts` section.
+ 
+ ## TODO
+ 
+ Adding more safety checks, prompts, etc. Maybe the ability to automatically delete POSTINIT entries that it finds

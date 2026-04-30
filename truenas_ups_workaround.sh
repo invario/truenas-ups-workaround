@@ -37,25 +37,38 @@ if [ "$query_initshutdownscript" != '[]' ]; then
   echo -e "Found the following entries in the system: \n"
   echo "$query_initshutdownscript" | jq
   continue_yesno=""
+  echo -e "\n"
   read -p 'If you continue, make sure you remove any duplicate entries after install. Continue anyway? (y/N) : ' continue_yesno
   if [ "$continue_yesno" == "Y" ] || [ "$continue_yesno" == "y" ]; then
-          echo -e "Proceeding.\n"
+          echo -e "\nProceeding.\n"
   else
-          echo -e "Exiting.\n"
+          echo -e "\nExiting.\n"
           exit 1
   fi
 else
   echo "No entries detected."
 fi
 
-desired_nut_version=""
+set +e
 echo -e "\nWhat version of NUT should I use?"
 echo -e "For a full list of valid tags from the NUT repo, visit https://github.com/networkupstools/nut/tags"
-read -p 'Version must be entered exactly as it appears on the site: [v2.8.5] : ' desired_nut_version
-if [ "$desired_nut_version" == "" ] || [ "$desired_nut_version" == "" ]; then
-  echo -e "\nDefault of v2.8.5 selected\n"
-  desired_nut_version="v2.8.5"
-fi
+desired_nut_version=""
+nut_version_valid=""
+while [ "$nut_version_valid" == "" ]
+  do
+    read -p 'Version must be entered exactly as it appears on the site: [v2.8.5] : ' desired_nut_version
+    if [ "$desired_nut_version" == "" ]; then
+      echo -e "\nDefault of v2.8.5 selected\n"
+      desired_nut_version="v2.8.5"
+    fi
+    nut_version_valid=$(git ls-remote --tags https://github.com/networkupstools/nut | grep "refs/tags/$desired_nut_version$")
+    if [ "$nut_version_valid" != "" ]; then
+      break
+    fi
+    echo -e "$desired_nut_version not found in the https://github.com/networkupstools/nut repo. Please check the tag list and try again.\n"
+    desired_nut_version=""
+  done
+set -e
 
 cleanup() {
   if [ $? -ne 0 ]; then
@@ -115,7 +128,7 @@ docker exec "$temp_container" apt-get -y install \
   libavahi-core-dev \
   libavahi-client-dev \
   dpkg-dev
-docker exec "$temp_container" git clone --branch "$desired_nut_version" https://github.com/networkupstools/nut /root/nut
+docker exec "$temp_container" git clone --branch "$desired_nut_version" --single-branch https://github.com/networkupstools/nut /root/nut
 docker exec "$temp_container" /bin/sh -c "cd /root/nut; /root/nut/autogen.sh"
 docker exec "$temp_container" /bin/sh -c "cd /root/nut; \
   deb_host_multiarch=\$(/usr/bin/dpkg-architecture -qdeb_host_multiarch); \

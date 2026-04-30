@@ -1,4 +1,5 @@
 #!/usr/bin/bash
+set -e
 if [ -z "$1" ]; then
         echo -e "\nUsage: $0 [target directory]\n"
         exit 1
@@ -57,12 +58,16 @@ if [ "$desired_nut_version" == "" ] || [ "$desired_nut_version" == "" ]; then
 fi
 
 cleanup() {
+  if [ $? -ne 0 ]; then
+    echo -e "Error encountered, aborting."
+  fi
   trap - EXIT INT TERM
   echo -e "Cleaning up."
   if [ "$temp_container" != "" ]; then
     echo -e "Stopping temp container $temp_container"
     docker container stop $temp_container > /dev/null
   fi
+    echo -e "All done."
   exit 1
 }
 

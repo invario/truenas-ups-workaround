@@ -10,10 +10,10 @@ if [ ! -d "$target_dir" ]; then
   exit 1
 fi
 
-echo -e """$target_dir"" selected for target directory.\n"
+echo -e "\"$target_dir\" selected for target directory.\n"
 continue_yesno=""
 if [ -f "$target_dir/usbhid-ups" ]; then
-  echo -e "WARNING: ""$target_dir/usbhid-ups"" file already exists. This file will be overwritten during installation.\n"
+  echo -e "WARNING: \"$target_dir/usbhid-ups\" file already exists. This file will be overwritten during installation.\n"
   read -p 'Continue anyway? (y/N) : ' continue_yesno
   if [ "$continue_yesno" == "Y" ] || [ "$continue_yesno" == "y" ]; then
     echo -e "Proceeding.\n"
@@ -28,8 +28,9 @@ if [ "$truenas_deb_version" == "" ]; then
   echo -e "Error, unable to determine Debian version. \"/etc/debian_version\" is missing/blank. Exiting."
   exit 1
 fi
-echo -e "Debian $truenas_deb_version detected\n"
-
+echo -e "Debian $truenas_deb_version indicated.\n"
+truenas_deb_version=$(cut -f1 -d '.' /etc/debian_version)
+echo -e "Using Docker image \"debian:$truenas_deb_version\"\n"
 echo -e "Checking if a POSTINIT entry exists for TrueNAS UPS workaround"
 query_initshutdownscript=$(midclt call initshutdownscript.query '[["comment","=","UPS update workaround"]]')
 if [ "$query_initshutdownscript" != '[]' ]; then
@@ -50,7 +51,7 @@ else
 fi
 
 set +e
-echo -e "\nWhat version of NUT should I use?"
+echo -e "What version of NUT should I use?"
 echo -e "For a full list of valid tags from the NUT repo, visit https://github.com/networkupstools/nut/tags"
 desired_nut_version=""
 nut_version_valid=""
@@ -85,50 +86,53 @@ cleanup() {
 }
 
 trap cleanup EXIT INT TERM
+echo -e "Starting temporary Docker container"
 temp_container=$(docker run -d --rm debian:$truenas_deb_version tail -f /dev/null)
+echo -e "Container created: $temp_container"
+echo -e "Updating and installing packages"
 docker exec "$temp_container" apt-get update
 docker exec "$temp_container" apt-get -y install \
+  augeas-lenses \
+  augeas-tools \
   autoconf \
   automake \
-  python3 \
-  git \
-  libtool \
-  g++ \
-  pkg-config \
-  libnss3-dev \
-  libnss3-tools \
-  openssl\
-  libssl-dev \
-  libgd-dev \
-  clang \
-  gcc \
-  cppcheck \
-  ccache \
-  time \
-  perl \
-  curl \
-  make \
-  libltdl-dev \
   binutils \
-  valgrind \
-  libcppunit-dev \
-  augeas-tools \
+  ccache \
+  clang \
+  cppcheck \
+  curl \
+  dpkg-dev \
+  g++ \
+  gcc \
+  git \
   libaugeas-dev \
-  augeas-lenses \
-  libusb-dev \
-  libusb-1.0-0-dev \
-  libglib2.0-dev \
-  libi2c-dev \
-  libmodbus-dev \
-  libsnmp-dev \
-  libpowerman0-dev \
-  libfreeipmi-dev \
-  libipmimonitoring-dev \
+  libavahi-client-dev \
   libavahi-common-dev \
   libavahi-core-dev \
-  libavahi-client-dev \
-  dpkg-dev
-docker exec "$temp_container" git clone --branch "$desired_nut_version" --single-branch https://github.com/networkupstools/nut /root/nut
+  libcppunit-dev \
+  libfreeipmi-dev \
+  libgd-dev \
+  libglib2.0-dev \
+  libi2c-dev \
+  libipmimonitoring-dev \
+  libltdl-dev \
+  libmodbus-dev \
+  libnss3-dev \
+  libnss3-tools \
+  libpowerman0-dev \
+  libsnmp-dev \
+  libssl-dev \
+  libtool \
+  libusb-1.0-0-dev \
+  libusb-dev \
+  make \
+  openssl\
+  pkg-config \
+  python3 \
+  time \
+  valgrind
+echo -e "Beginning build process"
+docker exec "$temp_container" git clone --branch "$desired_nut_version" https://github.com/networkupstools/nut /root/nut
 docker exec "$temp_container" /bin/sh -c "cd /root/nut; /root/nut/autogen.sh"
 docker exec "$temp_container" /bin/sh -c "cd /root/nut; \
   deb_host_multiarch=\$(/usr/bin/dpkg-architecture -qdeb_host_multiarch); \
@@ -159,11 +163,10 @@ docker exec "$temp_container" /bin/sh -c "cd /root/nut; \
   --with-systemdshutdowndir=/lib/systemd/system-shutdown \
   --with-systemdtmpfilesdir=/usr/lib/tmpfiles.d"
 docker exec "$temp_container" /bin/sh -c "cd /root/nut; make -j $(nproc) all-drivers"
-echo -e "Copying \"usbhid-ups\" driver to \"$target_dir\"\n"
+echo -e "Copying \"usbhid-ups\" driver from container to \"$target_dir\"\n"
 docker cp "$temp_container":/root/nut/drivers/usbhid-ups "$target_dir"
 echo -e "Adding POSTINIT startup entry to prepend \"driverpath=$target_dir\" to \"/etc/nut/ups.conf\""
 midclt call initshutdownscript.create '{"type": "COMMAND","command": "sed -i.old ''1s;^;driverpath='"$target_dir"'\n;'' /etc/nut/ups.conf && upsdrvctl start","when": "POSTINIT","comment": "UPS update workaround"}' >/dev/null
-echo -e "Build and copy completed and startup POSTINIT entry added."
 echo -e "Changes go into effect after every server restart."
 echo -e "This script can also restart the UPS driver right now and update the settings WITHOUT restarting the server.\n"
 startnew_yesno=""

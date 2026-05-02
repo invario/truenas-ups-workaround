@@ -1,4 +1,21 @@
 #!/usr/bin/bash
+script_version=1.1
+
+upgrade_avail() {
+  remote_version=$(curl -s -H "Cache-Control: no-cache" "https://raw.githubusercontent.com/invario/truenas-ups-workaround/refs/heads/master/truenas_ups_workaround.sh" | sed -n '2p' | cut -f2 -d '=')
+  if [ "$remote_version" == "$script_version" ]; then
+    return 1
+  fi
+  latest_version=$(echo -e "$script_version\n$remote_version" | sort -V | tail -n1)
+  if [ "$script_version" == "$latest_version" ]; then
+    return 1
+  fi
+  return 0
+}
+
+if upgrade_avail; then
+  echo -e "UPDATE AVAILABLE. Please visit https://www.github.com/invario/truenas-ups-workaround"
+fi
 set -e
 if [ -z "$1" ]; then
         echo -e "\nUsage: $0 [target directory]\n"

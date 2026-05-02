@@ -15,7 +15,7 @@ TrueNAS has closed the discussion on the topic and simply stated that they follo
  The current solution is much better. The part of NUT that causes the false alarms is the `usbhid-ups` driver which is simply one executable file. I wrote a Bash script that only needs to be run once and it does the following:
  
  1. Downloads a new version of NUT and builds the `usbhid-ups` driver, all inside a matching Debian Docker container (TrueNAS Scale/CE v25.10.3 is currently on Debian 12.11)
- 2. Copy the `upshid-ups` driver into the directory specified on the command line
+ 2. Copy the `usbhid-ups` driver into the directory specified on the command line
  3. Modifies the `/etc/nut/ups.conf` to include a line at the beginning for `driverpath=/YOUR_DIRECTORY_CHOICE` which allows NUT to load the new driver instead.
  4. Calls the TrueNAS API to add a POSTINIT entry that performs step #3 on every server restart since it will auto-revert. Note: if you make changes to your UPS settings and then save the settings, the `driverpath` modification to `/etc/nut/ups.conf` will also be lost.
  5. Reloads the UPS driver for you so you don't need to restart the server.
@@ -33,7 +33,9 @@ TrueNAS has closed the discussion on the topic and simply stated that they follo
  ```
  ./truenas_ups_workaround.sh /mnt/MYPOOL/custom/nut
  ```
- 5. Follow the prompts. If the script detects a POSTINIT entry exists that matches the one it will generate, it will warn you, but still allow you to proceed. Make sure you remove any duplicate entries in your `TrueNAS->System->Advanced Settings->Init/Shutdown Scripts` section.
+ 5. Follow the prompts. The script will check automatically for an update to itself. 
+ 
+ 6. If the script detects a POSTINIT entry exists that matches the one it will generate, it will warn you, but still allow you to proceed. Make sure you remove any duplicate entries in your `TrueNAS->System->Advanced Settings->Init/Shutdown Scripts` section.
  
  ## TODO
  

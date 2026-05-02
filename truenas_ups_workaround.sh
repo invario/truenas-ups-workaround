@@ -1,8 +1,10 @@
-#!/usr/bin/bash
-script_version=1.1
+#!/usr/bin/env bash
+script_version=1.2
+set -e
 
-upgrade_avail() {
-  remote_version=$(curl -s -H "Cache-Control: no-cache" "https://raw.githubusercontent.com/invario/truenas-ups-workaround/refs/heads/master/truenas_ups_workaround.sh" | sed -n '2p' | cut -f2 -d '=')
+update_avail() {
+  latest_script=$(curl -s "https://raw.githubusercontent.com/invario/truenas-ups-workaround/refs/heads/master/truenas_ups_workaround.sh")
+  remote_version=$(echo "$latest_script" | sed -n '2p' | cut -f2 -d '=')
   if [ "$remote_version" == "$script_version" ]; then
     return 1
   fi
@@ -13,18 +15,25 @@ upgrade_avail() {
   return 0
 }
 
-if upgrade_avail; then
-  echo -e "UPDATE AVAILABLE. Please visit https://www.github.com/invario/truenas-ups-workaround"
+if update_avail; then
+  echo -e "Newer version ($latest_version) available at https://www.github.com/invario/truenas-ups-workaround"
+  read -p 'Download update and restart? (y/N) : ' update_yesno
+  if [[ "$update_yesno" == "Y" || "$update_yesno" == "y" ]]; then
+    echo -e "Updating..."
+    downloadtemp=$(mktemp)
+    echo "$latest_script" > "$downloadtemp"
+    cat "$downloadtemp" > "$0"
+    echo -e "Restarting..."
+    exec "$0" "$@"
+  else
+    echo -e "Proceeding without updating.\n"
+    exit 1
+  fi
 fi
-set -e
+
 if [ -z "$1" ]; then
         echo -e "\nUsage: $0 [target directory]\n"
         exit 1
-fi
-target_dir=$1
-if [ ! -d "$target_dir" ]; then
-  echo -e "Target directory does not exist. Please create it first.\n"
-  exit 1
 fi
 
 echo -e "\"$target_dir\" selected for target directory.\n"

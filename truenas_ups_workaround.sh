@@ -32,7 +32,7 @@ continue_yesno=""
 if [ -f "$target_dir/usbhid-ups" ]; then
   echo -e "WARNING: \"$target_dir/usbhid-ups\" file already exists. This file will be overwritten during installation.\n"
   read -p 'Continue anyway? (y/N) : ' continue_yesno
-  if [ "$continue_yesno" == "Y" ] || [ "$continue_yesno" == "y" ]; then
+  if [[ "$continue_yesno" == "Y" || "$continue_yesno" == "y" ]]; then
     echo -e "Proceeding.\n"
   else
     echo -e "Exiting.\n"
@@ -57,7 +57,7 @@ if [ "$query_initshutdownscript" != '[]' ]; then
   continue_yesno=""
   echo -e "\n"
   read -p 'If you continue, make sure you remove any duplicate entries after install. Continue anyway? (y/N) : ' continue_yesno
-  if [ "$continue_yesno" == "Y" ] || [ "$continue_yesno" == "y" ]; then
+  if [[ "$continue_yesno" == "Y" || "$continue_yesno" == "y" ]]; then
           echo -e "\nProceeding.\n"
   else
           echo -e "\nExiting.\n"
@@ -188,7 +188,7 @@ echo -e "Changes go into effect after every server restart."
 echo -e "This script can also restart the UPS driver right now and update the settings WITHOUT restarting the server.\n"
 startnew_yesno=""
 read -p 'Would you like to do that now? (y/N) : ' startnew_yesno
-if [ "$startnew_yesno" == "Y" ] || [ "$startnew_yesno" == "y" ]; then
+if [[ "$startnew_yesno" == "Y" || "$startnew_yesno" == "y" ]]; then
   echo -e "Stopping old UPS driver\n"
   upsdrvctl stop
   echo -e "Updating /etc/nut/ups.conf"

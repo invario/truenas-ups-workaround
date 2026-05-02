@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-script_version=1.2.1
+script_version=1.2.2
 set -e
 echo -e "TrueNAS UPS Workaround v$script_version"
 echo -e "Site: https://www.github.com/invario/truenas-ups-workaround"
@@ -26,6 +26,7 @@ update_check() {
       downloadtemp=$(mktemp)
       echo "$latest_script" > "$downloadtemp"
       cat "$downloadtemp" > "$0"
+      rm -rf "$downloadtemp"
       echo -e "Restarting..."
       exec "$0" "$@"
     else

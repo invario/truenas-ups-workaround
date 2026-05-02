@@ -1,35 +1,40 @@
 #!/usr/bin/env bash
-script_version=1.2
+script_version=1.2.1
 set -e
+echo -e "TrueNAS UPS Workaround v$script_version"
+echo -e "Site: https://www.github.com/invario/truenas-ups-workaround"
+echo -e "Author: iNVAR\n"
 
-update_avail() {
-  latest_script=$(curl -s "https://raw.githubusercontent.com/invario/truenas-ups-workaround/refs/heads/master/truenas_ups_workaround.sh")
-  remote_version=$(echo "$latest_script" | sed -n '2p' | cut -f2 -d '=')
-  if [ "$remote_version" == "$script_version" ]; then
-    return 1
+update_check() {
+  update_avail() {
+    echo -e "Checking for newer version of script"
+    latest_script=$(curl -s "https://raw.githubusercontent.com/invario/truenas-ups-workaround/refs/heads/master/truenas_ups_workaround.sh")
+    remote_version=$(echo "$latest_script" | sed -n '2p' | cut -f2 -d '=')
+    latest_version=$(echo -e "$script_version\n$remote_version" | sort -V | tail -n1)
+    echo -e "Remote version: $remote_version"
+    if [ "$latest_version" == "$script_version" ]; then
+      echo -e "Already running latest version, no need to update"
+      return 1
+    fi
+    return 0
+  }
+  if update_avail; then
+    echo -e "Newer version available"
+    read -p 'Download update and restart? (y/N) : ' update_yesno
+    if [[ "$update_yesno" == "Y" || "$update_yesno" == "y" ]]; then
+      echo -e "Updating..."
+      downloadtemp=$(mktemp)
+      echo "$latest_script" > "$downloadtemp"
+      cat "$downloadtemp" > "$0"
+      echo -e "Restarting..."
+      exec "$0" "$@"
+    else
+      echo -e "Proceeding without updating.\n"
+    fi
   fi
-  latest_version=$(echo -e "$script_version\n$remote_version" | sort -V | tail -n1)
-  if [ "$script_version" == "$latest_version" ]; then
-    return 1
-  fi
-  return 0
 }
 
-if update_avail; then
-  echo -e "Newer version ($latest_version) available at https://www.github.com/invario/truenas-ups-workaround"
-  read -p 'Download update and restart? (y/N) : ' update_yesno
-  if [[ "$update_yesno" == "Y" || "$update_yesno" == "y" ]]; then
-    echo -e "Updating..."
-    downloadtemp=$(mktemp)
-    echo "$latest_script" > "$downloadtemp"
-    cat "$downloadtemp" > "$0"
-    echo -e "Restarting..."
-    exec "$0" "$@"
-  else
-    echo -e "Proceeding without updating.\n"
-    exit 1
-  fi
-fi
+update_check
 
 if [ -z "$1" ]; then
         echo -e "\nUsage: $0 [target directory]\n"

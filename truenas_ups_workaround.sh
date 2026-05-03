@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-script_version=1.2.2
+script_version=1.2.3
 set -e
 echo -e "TrueNAS UPS Workaround v$script_version"
 echo -e "Site: https://www.github.com/invario/truenas-ups-workaround"
@@ -42,7 +42,14 @@ if [ -z "$1" ]; then
         exit 1
 fi
 
-echo -e "\"$target_dir\" selected for target directory.\n"
+target_dir=$1
+echo -e """$target_dir"" selected for target directory.\n"
+
+if [ ! -d "$target_dir" ]; then
+  echo -e "Target directory does not exist. Please create it first.\n"
+  exit 1
+fi
+
 continue_yesno=""
 if [ -f "$target_dir/usbhid-ups" ]; then
   echo -e "WARNING: \"$target_dir/usbhid-ups\" file already exists. This file will be overwritten during installation.\n"
@@ -55,11 +62,12 @@ if [ -f "$target_dir/usbhid-ups" ]; then
   fi
 fi
 
-truenas_deb_version=$(cat /etc/debian_version)
-if [ "$truenas_deb_version" == "" ]; then
+if [ ! -f "/etc/debian_version" ]; then
   echo -e "Error, unable to determine Debian version. \"/etc/debian_version\" is missing/blank. Exiting."
   exit 1
 fi
+
+truenas_deb_version=$(cat /etc/debian_version)
 echo -e "Debian $truenas_deb_version indicated.\n"
 truenas_deb_version=$(cut -f1 -d '.' /etc/debian_version)
 echo -e "Using Docker image \"debian:$truenas_deb_version\"\n"

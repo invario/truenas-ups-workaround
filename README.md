@@ -14,28 +14,25 @@ TrueNAS has closed the discussion on the topic and simply stated that they follo
  
  The current solution is much better. The part of NUT that causes the false alarms is the `usbhid-ups` driver which is simply one executable file. I wrote a Bash script that only needs to be run once and it does the following:
  
- 1. Downloads a new version of NUT and builds the `usbhid-ups` driver, all inside a matching Debian Docker container (TrueNAS Scale/CE v25.10.3 is currently on Debian 12.11)
- 2. Copy the `usbhid-ups` driver into the directory specified on the command line
- 3. Modifies the `/etc/nut/ups.conf` to include a line at the beginning for `driverpath=/YOUR_DIRECTORY_CHOICE` which allows NUT to load the new driver instead.
- 4. Calls the TrueNAS API to add a POSTINIT entry that performs step #3 on every server restart since it will auto-revert. Note: if you make changes to your UPS settings and then save the settings, the `driverpath` modification to `/etc/nut/ups.conf` will also be lost.
- 5. Reloads the UPS driver for you so you don't need to restart the server.
+ 1. Checks to see if this script is the latest version. If not, offers an option to update itself.
+ 2. Downloads a new version of NUT and builds the `usbhid-ups` driver, all inside a matching version Debian Docker container (TrueNAS Scale/CE v25.10.3 is currently on Debian 12), then copies the `usbhid-ups` driver into the directory specified on the command line. 
+ 4. Adds a POSTINIT entry to TrueNAS that prepends `driverpath` to `/etc/nut/ups.conf` on every server restart (since changes auto-revert.) Note: if you restart your UPS service via TrueNAS, the `driverpath` entry to `/etc/nut/ups.conf` will be lost and you must either reboot, or run the script again with `--skip-build`.
+ 5. Optionally, immediately modify `/etc/nut/ups.conf` and reload the UPS driver for changes to be made effective immediately without a server restart.
 
 ## How Do I Install This?
 
- 1. SSH/Open a console to your TrueNAS server.
- 2. Download the script somewhere and make it executable. `/root` is fine.
+ 1. Ensure the TrueNAS UPS service is already enabled and running.
+ 2. SSH/Open a console to your TrueNAS server.
+ 3. Select a directory you want to store the single `usbhid-ups` executable. I have a dataset on my own pool called `custom` to store custom stuff, so I made a `nut` subdirectory there. 
+ 4. Download the script somewhere (`/root` is fine), make it executable, then run it.
  ```
  curl -o truenas_ups_workaround.sh https://raw.githubusercontent.com/invario/truenas-ups-workaround/refs/heads/master/truenas_ups_workaround.sh
  chmod 700 truenas_ups_workaround.sh
+ ./truenas_ups_workaround.sh [--skipbuild] <FULL_PATH_TO_YOUR_DIRECTORY>
  ```
- 3. Select a directory you want to store the single `usbhid-ups` executable. I have a dataset on my own pool called `custom` to store custom stuff, so I made a `nut` subdirectory there.
- 4. Run the script and specify the directory you picked in #3 above as the first and only command line parameter.
- ```
- ./truenas_ups_workaround.sh /mnt/MYPOOL/custom/nut
- ```
- 5. Follow the prompts. The script will check automatically for an update to itself. 
- 
- 6. If the script detects a POSTINIT entry exists that matches the one it will generate, it will warn you, but still allow you to proceed. Make sure you remove any duplicate entries in your `TrueNAS->System->Advanced Settings->Init/Shutdown Scripts` section.
+ Specifying `--skipbuild` on the command line skips the build process and assumes the `usbhid-ups` is already present in the selected directory.
+ 6. Follow the prompts.
+ 7. If the script detects a POSTINIT entry exists that matches the one it will generate, it will warn you, but still allow you to proceed. Make sure you remove any duplicate entries in your `TrueNAS->System->Advanced Settings->Init/Shutdown Scripts` section.
  
  ## TODO
  

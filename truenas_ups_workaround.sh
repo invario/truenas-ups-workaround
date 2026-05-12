@@ -1,5 +1,20 @@
 #!/usr/bin/env bash
-script_version=1.3.0
+script_version=1.3.1
+#
+# Copyright (C) 2026 iNVAR
+# TrueNAS UPS Workaround - A Bash script workaround for TrueNAS Scale/CE that
+# lets you update the UPS service NUT usbhid-ups driver, for users
+# experiencing false "replace battery" alarms.
+#
+# This program is free software: you can redistribute it and/or modify
+# under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY. See the GNU General Public License for
+# more details. <http://www.gnu.org/licenses/>.
+#
+
 set -e
 echo -e "TrueNAS UPS Workaround v$script_version"
 echo -e "Site: https://www.github.com/invario/truenas-ups-workaround"

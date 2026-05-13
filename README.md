@@ -24,16 +24,10 @@ TrueNAS has closed the discussion on the topic and simply stated that they follo
  1. Ensure the TrueNAS UPS service is already enabled and running.
  2. SSH/Open a console to your TrueNAS server.
  3. Select a directory you want to store the single `usbhid-ups` executable. I have a dataset on my own pool called `custom` to store custom stuff, so I made a `nut` subdirectory there. 
- 4. Download the script somewhere (`/root` is fine), make it executable, then run it.
+ 4. Download the script somewhere (`/root` is fine), make it executable, then run it. Specifying `--skipbuild` on the command line skips the build process and assumes the `usbhid-ups` is already present in the selected directory.
  ```
  curl -o truenas_ups_workaround.sh https://raw.githubusercontent.com/invario/truenas-ups-workaround/refs/heads/master/truenas_ups_workaround.sh
  chmod 700 truenas_ups_workaround.sh
  ./truenas_ups_workaround.sh [--skipbuild] <FULL_PATH_TO_YOUR_DIRECTORY>
  ```
- Specifying `--skipbuild` on the command line skips the build process and assumes the `usbhid-ups` is already present in the selected directory.
- 6. Follow the prompts.
- 7. If the script detects a POSTINIT entry exists that matches the one it will generate, it will warn you, but still allow you to proceed. Make sure you remove any duplicate entries in your `TrueNAS->System->Advanced Settings->Init/Shutdown Scripts` section.
- 
- ## TODO
- 
- Adding more safety checks, prompts, etc. Maybe the ability to automatically delete POSTINIT entries that it finds
+ 5. Follow the various prompts. That's it!

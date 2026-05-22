@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-script_version=1.4.0
+script_version=1.5.0
 #
 # Copyright (C) 2026 iNVAR
 # TrueNAS UPS Workaround - A Bash script workaround for TrueNAS Scale/CE that
@@ -22,90 +22,106 @@ Author: iNVAR
 "
 
 help="
-Usage: $0 [OPTION]... [FULL PATH TO DESTINATION DIRECTORY]
+Usage: $0 [OPTION]... [FULL PATH TO DESTINATION]
   Valid switches:
 
-  -s, --skip-build      skip building ""usbhid-ups"" driver, only perform configuration
+  -s, --skip-build      skip building ""usbhid-ups"" driver, only install config
   -h, --help            show this screen
 "
 
-echo -e "$script_header"
+echo "$script_header"
 
+# shellcheck disable=SC2120
 update_check() {
   update_avail() {
-    echo -e "Checking for newer version of script"
-    latest_script=$(curl -s "https://raw.githubusercontent.com/invario/truenas-ups-workaround/refs/heads/master/truenas_ups_workaround.sh")
-    if [ $? -ne 0 ]; then
-      echo -e "Unable to check for latest version, curl failed. Skipping..."
+    echo -e "\e[33mChecking for newer version of script\e[0m"
+    local latest_script remote_version latest_version downloadtemp
+    if ! latest_script=$(curl -s --fail-with-body "https://raw.githubusercontent.com/invario/truenas-ups-workaround/refs/heads/master/truenas_ups_workaround.sh"); then
+      echo "$latest_script"
+      echo -e "\e[31mUnable to check for latest version. Skipping...\e[0m"
       return 1
-    fi;
+    fi
     remote_version=$(echo "$latest_script" | sed -n '2p' | cut -f2 -d '=')
     latest_version=$(echo -e "$script_version\n$remote_version" | sort -V | tail -n1)
-    echo -e "Remote version: $remote_version"
+    echo "Remote version: $remote_version"
     if [ "$latest_version" == "$script_version" ]; then
-      echo -e "Already running latest version, no need to update.\n"
+      echo -e "\e[32mRunning latest version.\e[0m\n"
       return 1
     fi
     return 0
   }
   if update_avail; then
-    echo -e "Newer version available."
-    read -p 'Download update and restart? (y/N) : ' update_yesno
+    echo -e "\e[33mNewer version available.\e[0m"
+    read -r -p 'Download update and restart? (y/N) : ' update_yesno
     if [[ "$update_yesno" == "Y" || "$update_yesno" == "y" ]]; then
-      echo -e "Updating..."
+      echo "Updating..."
+      local downloadtemp
       downloadtemp=$(mktemp)
-      echo "$latest_script" > "$downloadtemp"
-      cat "$downloadtemp" > "$0"
+      echo "$latest_script" >"$downloadtemp"
+      cat "$downloadtemp" >"$0"
       rm -rf "$downloadtemp"
-      echo -e "Restarting..."
+      echo "Restarting..."
       exec "$0" "$@"
     else
-      echo -e "Proceeding without update.\n"
+      echo -e "\e[33mProceeding without update.\e[0m\n"
     fi
   fi
 }
 
 cleanup_and_exit() {
   if [ $? -ne 0 ]; then
-    echo -e "Error encountered, aborting."
+    errors="true"
+    echo -e "\n\e[31mAborting due to error.\e[0m"
   fi
   trap - EXIT INT TERM
-  echo -e "Cleaning up."
+  echo -e "\e[33mCleaning up.\e[0m"
   if [ "$temp_container" != "" ]; then
-    echo -e "Stopping temp container $temp_container"
-    docker container stop $temp_container > /dev/null
+    echo "Stopping temp container: $temp_container"
+    set +e
+    if ! docker container stop "$temp_container" >/dev/null; then
+      echo -e "\e[31mUnable to stop temp container\e[0m"
+    fi
+    set -e
   fi
-    echo -e "All done."
+  if [ "$errors" == "true" ]; then
+    echo -e "\e[31mDone and exiting, with errors encountered.\e[0m"
+  else
+    echo -e "\e[32mDone and exiting, successfully completed.\e[0m"
+  fi
   exit 1
 }
 
+trap cleanup_and_exit EXIT INT TERM
+
 buildnut() {
+  local truenas_deb_version
+  truenas_deb_version=$(cat /etc/debian_version)
+  echo -e "Detected TrueNAS host running Debian $truenas_deb_version\n"
+  truenas_deb_version=$(cut -f1 -d '.' /etc/debian_version)
+  echo -e "Using Docker image \"debian:$truenas_deb_version\"\n"
   set +e
-  echo -e "What version of NUT should I use?"
-  echo -e "For a full list of valid tags from the NUT repo, visit https://github.com/networkupstools/nut/tags"
-  desired_nut_version=""
-  nut_version_valid=""
-  while [ "$nut_version_valid" == "" ]
-    do
-      read -p 'Version must be entered exactly as it appears on the site: [v2.8.5] : ' desired_nut_version
-      if [ "$desired_nut_version" == "" ]; then
-        echo -e "\nDefault of v2.8.5 selected\n"
-        desired_nut_version="v2.8.5"
-      fi
-      nut_version_valid=$(git ls-remote --tags https://github.com/networkupstools/nut | grep "refs/tags/$desired_nut_version$")
-      if [ "$nut_version_valid" != "" ]; then
-        break
-      fi
-      echo -e "$desired_nut_version not found in the https://github.com/networkupstools/nut repo. Please check the tag list and try again.\n"
-      desired_nut_version=""
-    done
+  echo "What version of NUT should I use?"
+  echo "Visit <https://github.com/networkupstools/nut/tags> for a list of tags"
+  local desired_nut_version=local nut_version_valid=""
+  while [ "$nut_version_valid" == "" ]; do
+    read -r -p 'Version must be entered exactly as it appears on the site [v2.8.5] : ' desired_nut_version
+    if [ "$desired_nut_version" == "" ]; then
+      echo -e "\nDefault of v2.8.5 selected\n"
+      desired_nut_version="v2.8.5"
+    fi
+    nut_version_valid=$(git ls-remote --tags https://github.com/networkupstools/nut "refs/tags/$desired_nut_version")
+    if [ "$nut_version_valid" != "" ]; then
+      break
+    fi
+    echo -e "\e[31m$desired_nut_version not found\e[0m in the https://github.com/networkupstools/nut repo. Please check the tag list and try again.\n"
+    desired_nut_version=""
+  done
   set -e
 
-  trap cleanup_and_exit EXIT INT TERM
-  echo -e "Starting temporary Docker container"
-  temp_container=$(docker run -d --rm debian:$truenas_deb_version tail -f /dev/null)
-  echo -e "Container created: $temp_container"
-  echo -e "Updating and installing packages"
+  echo "Starting temporary Docker container"
+  temp_container=$(docker run -d --rm debian:"$truenas_deb_version" tail -f /dev/null)
+  echo "Container created: $temp_container"
+  echo "Updating and installing packages"
   docker exec "$temp_container" apt-get update
   docker exec "$temp_container" apt-get -y install \
     augeas-lenses \
@@ -142,12 +158,12 @@ buildnut() {
     libusb-1.0-0-dev \
     libusb-dev \
     make \
-    openssl\
+    openssl \
     pkg-config \
     python3 \
     time \
     valgrind
-  echo -e "Beginning build process"
+  echo "Beginning build process"
   docker exec "$temp_container" git clone --branch "$desired_nut_version" https://github.com/networkupstools/nut /root/nut
   docker exec "$temp_container" /bin/sh -c "cd /root/nut; /root/nut/autogen.sh"
   docker exec "$temp_container" /bin/sh -c "cd /root/nut; \
@@ -179,53 +195,50 @@ buildnut() {
     --with-systemdshutdowndir=/lib/systemd/system-shutdown \
     --with-systemdtmpfilesdir=/usr/lib/tmpfiles.d"
   docker exec "$temp_container" /bin/sh -c "cd /root/nut; make -j $(nproc) all-drivers"
-  echo -e "Copying \"usbhid-ups\" driver from container to \"$dest_dir\"\n"
+  echo -e "\e[32mBuild completed\e[32m.\nCopying \"usbhid-ups\" driver from container to \"$dest_dir\"\n"
   docker cp "$temp_container":/root/nut/drivers/usbhid-ups "$dest_dir"
 }
 
 update_check
 
 if [ -z "$1" ]; then
-  echo -e "$help"
-  exit 1
+  echo "$help"
+  trap - EXIT
+  exit 0
 fi
 
 dest_dir=${!#}
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    # -f|--file)
-      # FILE="$2"
-      # shift # Past argument
-      # shift # Past value
-      # ;;
-    -s|--skip-build)
-      skipbuild=true
-      shift # Shift past the flag
-      ;;
-    -h|--help)
-      echo -e "$help"
-      exit 0
-      ;;
-    --) # Manual end of options
-      shift
-      break
-      ;;
-    *) # Handle unknown options or positional arguments
-      if [ "${1:0:1}" == "-" ]; then
-        echo -e "Error, invalid switch: ""$1"""
-        echo -e "$help"
-        exit 1
-      fi
-      POSITIONAL_ARGS+=("$1")
-      shift
-      ;;
+  -s | --skip-build)
+    skipbuild=true
+    shift # Shift past the flag
+    ;;
+  -h | --help)
+    echo "$help"
+    trap - EXIT
+    exit 0
+    ;;
+  --) # Manual end of options
+    shift
+    break
+    ;;
+  *) # Handle unknown options or positional arguments
+    if [ "${1:0:1}" == "-" ]; then
+      echo -e "Error, invalid switch: \"$1\""
+      echo "$help"
+      exit 1
+    fi
+    POSITIONAL_ARGS+=("$1")
+    shift
+    ;;
   esac
 done
 
 if [ ${#POSITIONAL_ARGS[@]} -eq 0 ]; then
-  echo -e "Error, no destination directory provided"
-  echo -e "$help"
+  echo "Error, no destination directory provided"
+  echo "$help"
   exit 1
 fi
 
@@ -240,47 +253,43 @@ if [ ! -f "/etc/debian_version" ]; then
   exit 1
 fi
 
-truenas_deb_version=$(cat /etc/debian_version)
-echo -e "Detected TrueNAS host running Debian $truenas_deb_version\n"
-truenas_deb_version=$(cut -f1 -d '.' /etc/debian_version)
-echo -e "Using Docker image \"debian:$truenas_deb_version\"\n"
-echo "Checking if a POSTINIT entry exists for TrueNAS UPS workaround."
-query_initshutdownscript=$(midclt call initshutdownscript.query '[["comment","=","UPS update workaround"],["enabled","=",true]]' '{"select": ["id","comment","command"]}')
-if [ "$query_initshutdownscript" != '[]' ]; then
-  echo -e "WARNING: \"UPS update workaround\" POSTINIT entry appears to already exist."
-  echo "Found the following enabled: "
-  jq -c '.[] | {id, comment, command}' <<< "$query_initshutdownscript" 
-  continue_yesno=""
-  echo -e "What would you like to do?
-- disable them (you can undo this manually if needed)
-- remove them (permanent)
-- ignore them (remove duplicates yourself manually)
-- abort and exit"
-  read -p '(R)emove, (D)isable, (I)gnore, or (A)bort: ' continue_yesno
-  case "$continue_yesno" in
+check_postinit() {
+  echo -e "\e[33mChecking if a POSTINIT entry exists already\e[0m"
+  query_initshutdownscript=$(midclt call initshutdownscript.query '[["comment","=","UPS update workaround"],["enabled","=",true]]' '{"select": ["id","comment","command"]}')
+  if [ "$query_initshutdownscript" != '[]' ]; then
+    echo -e "\e[31mWARNING\e[0m: \"UPS update workaround\" POSTINIT entries exist.\n"
+    echo -e "The following ($(jq 'length' <<<"$query_initshutdownscript")) were found:\n"
+    jq -c '.[] | {id, comment, command}' <<<"$query_initshutdownscript"
+    continue_yesno=""
+    echo -e "\nWhat would you like to do with them?
+  - (R)emove (permanent)
+  - (D)isable (you can undo this manually if needed)
+  - (I)gnore (remove the duplicates yourself manually)
+  - (A)bort and exit"
+    read -r -p '(R)emove, (D)isable, (I)gnore, or (A)bort: ' continue_yesno
+    echo ""
+    case "$continue_yesno" in
     [rR])
-      readarray -t all_entry_ids < <(jq -c '.[].id' <<< "$query_initshutdownscript")
+      readarray -t all_entry_ids < <(jq -c '.[].id' <<<"$query_initshutdownscript")
       set +e
       for entry_id in "${all_entry_ids[@]}"; do
-        midclt call initshutdownscript.delete "$entry_id" > /dev/null
         # initshutdownscript.delete ALWAYS returns TRUE even if the "$entry_id" doesn't exist.
         # The only failure we can evaluate for is if the midclt command fails to execute.
-        if [ $? -eq 0 ]; then 
-          echo "Deleted POSTINIT entry $entry_id."
+        if midclt call initshutdownscript.delete "$entry_id" >/dev/null; then
+          echo -e "\e[33mDeleted POSTINIT entry $entry_id.\e[0m"
         else
-          echo "Unable to delete entry $entry_id"
-          break
+          echo -e "\e[31mUnable to delete entry $entry_id\e[0m"
+          exit 1
         fi
       done
       set -e
       ;;
-  
+
     [dD])
       set +e
-      readarray -t all_entry_ids < <(jq -c '.[].id' <<< "$query_initshutdownscript")
+      readarray -t all_entry_ids < <(jq -c '.[].id' <<<"$query_initshutdownscript")
       for entry_id in "${all_entry_ids[@]}"; do
-        midclt call initshutdownscript.update "$entry_id" '{"enabled":false}' > /dev/null
-        if [ $? -eq 0 ]; then 
+        if midclt call initshutdownscript.update "$entry_id" '{"enabled":false}' >/dev/null; then
           echo "Disabled POSTINIT entry $entry_id."
         else
           echo "Unable to disable entry $entry_id"
@@ -292,20 +301,22 @@ if [ "$query_initshutdownscript" != '[]' ]; then
     [iI])
       echo "Proceeding."
       ;;
-    [aA]|*)
+    [aA] | *)
       echo "Aborting."
-      exit 1
+      exit 0
       ;;
-  esac  
-else
-  echo "No entries detected."
-fi
+    esac
+  else
+    echo -e "\e[32mNo entries detected.\e[0m"
+  fi
+  echo ""
+}
 
 continue_yesno=""
-if [ $skipbuild ]; then
+if [ "$skipbuild" ]; then
   if [ ! -f "$dest_dir/usbhid-ups" ]; then
-    echo -e "WARNING: \"$dest_dir/usbhid-ups\" file doesn't exist and ""--skipbuild"" was specified.\n"
-    read -p 'Continue anyway? (y/N) : ' continue_yesno
+    echo -e "\e[31mWARNING\e[0m: \"$dest_dir/usbhid-ups\" file doesn't exist and ""--skipbuild"" was specified.\n"
+    read -r -p 'Continue anyway? (y/N) : ' continue_yesno
     if [[ "$continue_yesno" == "Y" || "$continue_yesno" == "y" ]]; then
       echo -e "Proceeding.\n"
     else
@@ -315,8 +326,8 @@ if [ $skipbuild ]; then
   fi
 else
   if [ -f "$dest_dir/usbhid-ups" ]; then
-    echo -e "WARNING: \"$dest_dir/usbhid-ups\" file already exists. This file will be overwritten during installation.\n"
-    read -p 'Continue anyway? (y/N) : ' continue_yesno
+    echo -e "\e[31mWARNING\e[0m: \"$dest_dir/usbhid-ups\" file already exists. This file will be overwritten during installation.\n"
+    read -r -p 'Continue anyway? (y/N) : ' continue_yesno
     if [[ "$continue_yesno" == "Y" || "$continue_yesno" == "y" ]]; then
       echo -e "Proceeding.\n"
     else
@@ -327,27 +338,42 @@ else
   buildnut
 fi
 
-echo -e "Adding new POSTINIT startup entry to prepend \"driverpath=$dest_dir\" to \"/etc/nut/ups.conf\""
-midclt call initshutdownscript.create '{"type": "COMMAND","command": "sed -i.old ''1s;^;driverpath='"$dest_dir"'\n;'' /etc/nut/ups.conf && upsdrvctl start","when": "POSTINIT","comment": "UPS update workaround"}' >/dev/null
-echo -e "Changes take effect after every server restart.
-This script can also immediately modify ""/etc/nut/ups.conf"" and restart the UPS driver. Your changes will go into effect WITHOUT restarting the server.\n"
+check_postinit
+echo -e "\e[33mAdding new POSTINIT startup entry\e[0m"
+if ! midclt call initshutdownscript.create '{"type": "COMMAND","command": "sed -i.old ''1s;^;driverpath='"$dest_dir"'\n;'' /etc/nut/ups.conf && upsdrvctl start","when": "POSTINIT","comment": "UPS update workaround"}' >/dev/null; then
+  echo -e "\e[31mUnable to add new POSTINIT startup entry\e[0m"
+  exit 1
+fi
+echo -e "Changes are effective after every server restart.
+This script can also immediately modify \"/etc/nut/ups.conf\" and restart the UPS driver. Changes will be effective WITHOUT restarting the server.\n"
 startnew_yesno=""
-read -p 'Would you like to do that now? (y/N) : ' startnew_yesno
+read -r -p 'Would you like to do that now? (y/N) : ' startnew_yesno
 if [[ "$startnew_yesno" == "Y" || "$startnew_yesno" == "y" ]]; then
-  echo -e "Stopping old UPS driver\n"
-  upsdrvctl stop
-  echo -e "Updating /etc/nut/ups.conf"
   set +e
-  grep "driverpath=" /etc/nut/ups.conf > /dev/null  
-  if [ $? -eq 0 ]; then
+  if grep "driverpath=" /etc/nut/ups.conf >/dev/null; then
     set -e
-    echo -e "Existing "driverpath" entry found, updating it"
+    echo -e "\n\e[33mExisting \"driverpath\" line found, updating it\e[0m\n"
     sed -i.old 's;^driverpath=.*;driverpath='"$dest_dir"';' /etc/nut/ups.conf
   else
     set -e
+    echo -e "\n\e[33mPrepending new \"driverpath\" line \e[0m\n"
     sed -i.old '1s;^;driverpath='"$dest_dir"'\n;' /etc/nut/ups.conf
   fi
-  echo -e "Starting new UPS driver\n"
-  upsdrvctl start
+  set -e
+  echo -e "\e[33mStopping old UPS driver\e[0m\n"
+  if ! upsdrvctl stop; then
+    echo -e "\e[31mFailed to stop UPS driver\e[0m"
+    exit 1
+  fi
+  for i in {5..1}; do
+    echo -en "\r\e[33mSleeping for 5 seconds: $i"
+    sleep 1
+  done
+  echo -e "\r\e[33mSleeping for 5 seconds: done\e[0m"
+  echo -e "\n\e[33mStarting new UPS driver\e[0m\n"
+  if ! upsdrvctl start; then
+    echo -e "\e[31mFailed to start new UPS driver\e[0m"
+    exit 1
+  fi
 fi
 cleanup_and_exit

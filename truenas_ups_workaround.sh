@@ -44,7 +44,7 @@ update_check() {
     remote_version=$(echo "$latest_script" | sed -n '2p' | cut -f2 -d '=')
     latest_version=$(echo -e "$script_version\n$remote_version" | sort -V | tail -n1)
     echo "Remote version: $remote_version"
-    if [ "$latest_version" == "$script_version" ]; then
+    if [[ "$latest_version" == "$script_version" ]]; then
       echo -e "\e[32mRunning latest version.\e[0m\n"
       return 1
     fi
@@ -69,13 +69,13 @@ update_check() {
 }
 
 cleanup_and_exit() {
-  if [ $? -ne 0 ]; then
+  if [[ $? -ne 0 ]]; then
     errors="true"
     echo -e "\n\e[31mAborting due to error.\e[0m"
   fi
   trap - EXIT INT TERM
   echo -e "\e[33mCleaning up.\e[0m"
-  if [ "$temp_container" != "" ]; then
+  if [[ "$temp_container" != "" ]]; then
     echo "Stopping temp container: $temp_container"
     set +e
     if ! docker container stop "$temp_container" >/dev/null; then
@@ -83,7 +83,7 @@ cleanup_and_exit() {
     fi
     set -e
   fi
-  if [ "$errors" == "true" ]; then
+  if [[ "$errors" == "true" ]]; then
     echo -e "\e[31mDone and exiting, with errors encountered.\e[0m"
   else
     echo -e "\e[32mDone and exiting, successfully completed.\e[0m"
@@ -102,15 +102,16 @@ buildnut() {
   set +e
   echo "What version of NUT should I use?"
   echo "Visit <https://github.com/networkupstools/nut/tags> for a list of tags"
-  local desired_nut_version=local nut_version_valid=""
+  local desired_nut_version=""
+  local nut_version_valid=""
   while [ "$nut_version_valid" == "" ]; do
     read -r -p 'Version must be entered exactly as it appears on the site [v2.8.5] : ' desired_nut_version
-    if [ "$desired_nut_version" == "" ]; then
+    if [[ "$desired_nut_version" == "" ]]; then
       echo -e "\nDefault of v2.8.5 selected\n"
       desired_nut_version="v2.8.5"
     fi
     nut_version_valid=$(git ls-remote --tags https://github.com/networkupstools/nut "refs/tags/$desired_nut_version")
-    if [ "$nut_version_valid" != "" ]; then
+    if [[ "$nut_version_valid" != "" ]]; then
       break
     fi
     echo -e "\e[31m$desired_nut_version not found\e[0m in the https://github.com/networkupstools/nut repo. Please check the tag list and try again.\n"
@@ -201,7 +202,7 @@ buildnut() {
 
 update_check
 
-if [ -z "$1" ]; then
+if [[ -z "$1" ]]; then
   echo "$help"
   trap - EXIT
   exit 0
@@ -225,7 +226,7 @@ while [[ $# -gt 0 ]]; do
     break
     ;;
   *) # Handle unknown options or positional arguments
-    if [ "${1:0:1}" == "-" ]; then
+    if [[ "${1:0:1}" == "-" ]]; then
       echo -e "Error, invalid switch: \"$1\""
       echo "$help"
       exit 1
@@ -236,19 +237,19 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [ ${#POSITIONAL_ARGS[@]} -eq 0 ]; then
+if [[ ${#POSITIONAL_ARGS[@]} -eq 0 ]]; then
   echo "Error, no destination directory provided"
   echo "$help"
   exit 1
 fi
 
-if [ ${#POSITIONAL_ARGS[@]} -gt 1 ]; then
+if [[ ${#POSITIONAL_ARGS[@]} -gt 1 ]]; then
   echo "Error, too many arguments provided"
   echo "$help"
   exit 1
 fi
 
-if [ ! -f "/etc/debian_version" ]; then
+if [[ ! -f "/etc/debian_version" ]]; then
   echo -e "Error, unable to determine Debian version. \"/etc/debian_version\" is missing/blank. Exiting."
   exit 1
 fi
@@ -256,7 +257,7 @@ fi
 check_postinit() {
   echo -e "\e[33mChecking if a POSTINIT entry exists already\e[0m"
   query_initshutdownscript=$(midclt call initshutdownscript.query '[["comment","=","UPS update workaround"],["enabled","=",true]]' '{"select": ["id","comment","command"]}')
-  if [ "$query_initshutdownscript" != '[]' ]; then
+  if [[ "$query_initshutdownscript" != '[]' ]]; then
     echo -e "\e[31mWARNING\e[0m: \"UPS update workaround\" POSTINIT entries exist.\n"
     echo -e "The following ($(jq 'length' <<<"$query_initshutdownscript")) were found:\n"
     jq -c '.[] | {id, comment, command}' <<<"$query_initshutdownscript"
@@ -299,7 +300,7 @@ check_postinit() {
       set -e
       ;;
     [iI])
-      echo "Proceeding."
+      echo -e "\e[33mIgnoring existing entry and proceeding.\e[0m"
       ;;
     [aA] | *)
       echo "Aborting."
@@ -309,12 +310,11 @@ check_postinit() {
   else
     echo -e "\e[32mNo entries detected.\e[0m"
   fi
-  echo ""
 }
 
 continue_yesno=""
-if [ "$skipbuild" ]; then
-  if [ ! -f "$dest_dir/usbhid-ups" ]; then
+if [[ "$skipbuild" ]]; then
+  if [[ ! -f "$dest_dir/usbhid-ups" ]]; then
     echo -e "\e[31mWARNING\e[0m: \"$dest_dir/usbhid-ups\" file doesn't exist and ""--skipbuild"" was specified.\n"
     read -r -p 'Continue anyway? (y/N) : ' continue_yesno
     if [[ "$continue_yesno" == "Y" || "$continue_yesno" == "y" ]]; then
@@ -325,7 +325,7 @@ if [ "$skipbuild" ]; then
     fi
   fi
 else
-  if [ -f "$dest_dir/usbhid-ups" ]; then
+  if [[ -f "$dest_dir/usbhid-ups" ]]; then
     echo -e "\e[31mWARNING\e[0m: \"$dest_dir/usbhid-ups\" file already exists. This file will be overwritten during installation.\n"
     read -r -p 'Continue anyway? (y/N) : ' continue_yesno
     if [[ "$continue_yesno" == "Y" || "$continue_yesno" == "y" ]]; then
@@ -340,12 +340,13 @@ fi
 
 check_postinit
 echo -e "\e[33mAdding new POSTINIT startup entry\e[0m"
-if ! midclt call initshutdownscript.create '{"type": "COMMAND","command": "sed -i.old ''1s;^;driverpath='"$dest_dir"'\n;'' /etc/nut/ups.conf && upsdrvctl start","when": "POSTINIT","comment": "UPS update workaround"}' >/dev/null; then
+if ! new_postinit_id=$(midclt call initshutdownscript.create '{"type": "COMMAND","command": "sed -i.old ''1s;^;driverpath='"$dest_dir"'\n;'' /etc/nut/ups.conf && upsdrvctl start","when": "POSTINIT","comment": "UPS update workaround"}' | jq '.id'); then
   echo -e "\e[31mUnable to add new POSTINIT startup entry\e[0m"
   exit 1
 fi
+echo -e "\e[33mNew POSTINIT startup entry ID $new_postinit_id added.\e[0m\n"
 echo -e "Changes are effective after every server restart.
-This script can also immediately modify \"/etc/nut/ups.conf\" and restart the UPS driver. Changes will be effective WITHOUT restarting the server.\n"
+This script can also immediately make the changes and restart the UPS driver, effective WITHOUT restarting the server.\n"
 startnew_yesno=""
 read -r -p 'Would you like to do that now? (y/N) : ' startnew_yesno
 if [[ "$startnew_yesno" == "Y" || "$startnew_yesno" == "y" ]]; then

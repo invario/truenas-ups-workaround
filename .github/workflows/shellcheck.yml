@@ -11,7 +11,7 @@ jobs:
   ShellCheck:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Run ShellCheck
       uses: ludeeus/action-shellcheck@master
       
@@ -20,6 +20,6 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - name: Install shfmt
-      uses: mfinelli/setup-shfmt@v3
+      uses: mfinelli/setup-shfmt@v4
     - name: Check Formatting
       run: shfmt -d -i 2 .

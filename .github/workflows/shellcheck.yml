@@ -3,15 +3,9 @@ on:
   push:
     branches:
       - '*'
-    paths:
-      - '**.sh'
-      - '.github/workflows/shellcheck.yml'
   pull_request:
     branches:
       - '*'
-    paths:
-      - '**.sh'
-      - '.github/workflows/shellcheck.yml'
 
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}

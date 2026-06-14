@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-script_version=1.5.0
+script_version=1.6.0
 #
 # Copyright (C) 2026 iNVAR
 # TrueNAS UPS Workaround - A Bash script workaround for TrueNAS Scale/CE that
@@ -15,22 +15,6 @@ script_version=1.5.0
 # more details. <http://www.gnu.org/licenses/>.
 #
 
-set -e
-script_header="TrueNAS UPS Workaround v$script_version
-Site: https://www.github.com/invario/truenas-ups-workaround
-Author: iNVAR
-"
-
-help="
-Usage: $0 [OPTION]... [FULL PATH TO DESTINATION]
-  Valid switches:
-
-  -s, --skip-build      skip building ""usbhid-ups"" driver, only install config
-  -h, --help            show this screen
-"
-
-echo "$script_header"
-
 # shellcheck disable=SC2120
 update_check() {
   update_avail() {
@@ -45,7 +29,7 @@ update_check() {
     latest_version=$(echo -e "$script_version\n$remote_version" | sort -V | tail -n1)
     echo "Remote version: $remote_version"
     if [[ "$latest_version" == "$script_version" ]]; then
-      echo -e "\e[32mRunning latest version.\e[0m\n"
+      echo -e "\e[32m✓ Running latest version.\e[0m\n"
       return 1
     fi
     return 0
@@ -86,14 +70,12 @@ cleanup_and_exit() {
   if [[ "$errors" == "true" ]]; then
     echo -e "\e[31mDone and exiting, with errors encountered.\e[0m"
   else
-    echo -e "\e[32mDone and exiting, successfully completed.\e[0m"
+    echo -e "\e[32m✓ Done and exiting, successfully completed.\e[0m"
   fi
   exit 1
 }
 
-trap cleanup_and_exit EXIT INT TERM
-
-buildnut() {
+build_nut() {
   local truenas_deb_version
   truenas_deb_version=$(cat /etc/debian_version)
   echo -e "Detected TrueNAS host running Debian $truenas_deb_version\n"
@@ -200,60 +182,6 @@ buildnut() {
   docker cp "$temp_container":/root/nut/drivers/usbhid-ups "$dest_dir"
 }
 
-update_check
-
-if [[ -z "$1" ]]; then
-  echo "$help"
-  trap - EXIT
-  exit 0
-fi
-
-dest_dir=${!#}
-
-while [[ $# -gt 0 ]]; do
-  case $1 in
-  -s | --skip-build)
-    skipbuild=true
-    shift # Shift past the flag
-    ;;
-  -h | --help)
-    echo "$help"
-    trap - EXIT
-    exit 0
-    ;;
-  --) # Manual end of options
-    shift
-    break
-    ;;
-  *) # Handle unknown options or positional arguments
-    if [[ "${1:0:1}" == "-" ]]; then
-      echo -e "Error, invalid switch: \"$1\""
-      echo "$help"
-      exit 1
-    fi
-    POSITIONAL_ARGS+=("$1")
-    shift
-    ;;
-  esac
-done
-
-if [[ ${#POSITIONAL_ARGS[@]} -eq 0 ]]; then
-  echo "Error, no destination directory provided"
-  echo "$help"
-  exit 1
-fi
-
-if [[ ${#POSITIONAL_ARGS[@]} -gt 1 ]]; then
-  echo "Error, too many arguments provided"
-  echo "$help"
-  exit 1
-fi
-
-if [[ ! -f "/etc/debian_version" ]]; then
-  echo -e "Error, unable to determine Debian version. \"/etc/debian_version\" is missing/blank. Exiting."
-  exit 1
-fi
-
 check_postinit() {
   echo -e "\e[33mChecking if a POSTINIT entry exists already\e[0m"
   query_initshutdownscript=$(midclt call initshutdownscript.query '[["comment","=","UPS update workaround"],["enabled","=",true]]' '{"select": ["id","comment","command"]}')
@@ -312,6 +240,78 @@ check_postinit() {
   fi
 }
 
+set -e
+script_header="TrueNAS UPS Workaround v$script_version
+Site: https://www.github.com/invario/truenas-ups-workaround
+Author: iNVAR
+"
+
+help="
+Usage: $0 [OPTION]... [FULL PATH TO DESTINATION]
+  Valid switches:
+
+  -s, --skip-build      skip building ""usbhid-ups"" driver, only install config
+  -h, --help            show this screen
+"
+
+echo "$script_header"
+
+trap cleanup_and_exit EXIT INT TERM
+
+update_check
+
+if [[ -z "$1" ]]; then
+  echo "$help"
+  trap - EXIT
+  exit 0
+fi
+
+dest_dir=${!#}
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+  -s | --skip-build)
+    skipbuild=true
+    shift # Shift past the flag
+    ;;
+  -h | --help)
+    echo "$help"
+    trap - EXIT
+    exit 0
+    ;;
+  --) # Manual end of options
+    shift
+    break
+    ;;
+  *) # Handle unknown options or positional arguments
+    if [[ "${1:0:1}" == "-" ]]; then
+      echo -e "Error, invalid switch: \"$1\""
+      echo "$help"
+      exit 1
+    fi
+    POSITIONAL_ARGS+=("$1")
+    shift
+    ;;
+  esac
+done
+
+if [[ ${#POSITIONAL_ARGS[@]} -eq 0 ]]; then
+  echo "Error, no destination directory provided"
+  echo "$help"
+  exit 1
+fi
+
+if [[ ${#POSITIONAL_ARGS[@]} -gt 1 ]]; then
+  echo "Error, too many arguments provided"
+  echo "$help"
+  exit 1
+fi
+
+if [[ ! -f "/etc/debian_version" ]]; then
+  echo -e "Error, unable to determine Debian version. \"/etc/debian_version\" is missing/blank. Exiting."
+  exit 1
+fi
+
 continue_yesno=""
 if [[ "$skipbuild" ]]; then
   if [[ ! -f "$dest_dir/usbhid-ups" ]]; then
@@ -335,46 +335,77 @@ else
       exit 1
     fi
   fi
-  buildnut
+  build_nut
 fi
 
-check_postinit
-echo -e "\e[33mAdding new POSTINIT startup entry\e[0m"
-if ! new_postinit_id=$(midclt call initshutdownscript.create '{"type": "COMMAND","command": "sed -i.old ''1s;^;driverpath='"$dest_dir"'\n;'' /etc/nut/ups.conf && upsdrvctl start","when": "POSTINIT","comment": "UPS update workaround"}' | jq '.id'); then
-  echo -e "\e[31mUnable to add new POSTINIT startup entry\e[0m"
-  exit 1
-fi
-echo -e "\e[33mNew POSTINIT startup entry ID $new_postinit_id added.\e[0m\n"
-echo -e "Changes are effective after every server restart.
-This script can also immediately make the changes and restart the UPS driver, effective WITHOUT restarting the server.\n"
-startnew_yesno=""
-read -r -p 'Would you like to do that now? (y/N) : ' startnew_yesno
-if [[ "$startnew_yesno" == "Y" || "$startnew_yesno" == "y" ]]; then
+modify_upsconf() {
   set +e
   if grep "driverpath=" /etc/nut/ups.conf >/dev/null; then
     set -e
-    echo -e "\n\e[33mExisting \"driverpath\" line found, updating it\e[0m\n"
     sed -i.old 's;^driverpath=.*;driverpath='"$dest_dir"';' /etc/nut/ups.conf
+    echo -e "\e[32m✓ Existing \"driverpath\" line found and updated.\e[0m"
   else
     set -e
-    echo -e "\n\e[33mPrepending new \"driverpath\" line \e[0m\n"
     sed -i.old '1s;^;driverpath='"$dest_dir"'\n;' /etc/nut/ups.conf
+    echo -e "\e[32m✓ Prepended new \"driverpath\" line \e[0m"
   fi
+  if grep "lbrb_log_delay_without_calibrating" /etc/nut/ups.conf >/dev/null; then
+    set -e
+    sed -i.old 's;lbrb_log_delay_without_calibrating.*;lbrb_log_delay_without_calibrating=1;' /etc/nut/ups.conf
+    echo -e "\e[32m✓ Existing \"lbrb_log_delay_without_calibrating\" line found and updated.\e[0m"
+  else
+    set -e
+    echo "lbrb_log_delay_without_calibrating=1" >>/etc/nut/ups.conf
+    echo -e "\e[32m✓ Appended new \"lbrb_log_delay_without_calibrating\" line \e[0m"
+  fi
+  if grep "lbrb_log_delay_sec" /etc/nut/ups.conf >/dev/null; then
+    set -e
+    sed -i.old 's;lbrb_log_delay_sec.*;lbrb_log_delay_sec=3;' /etc/nut/ups.conf
+    echo -e "\e[32m✓ Existing \"lbrb_log_delay_sec\" line found and updated.\e[0m"
+  else
+    set -e
+    echo "lbrb_log_delay_sec=3" >>/etc/nut/ups.conf
+    echo -e "\e[32m✓ Appended new \"lbrb_log_delay_sec\" line \e[0m"
+  fi
+  if grep "onlinedischarge_calibration" /etc/nut/ups.conf >/dev/null; then
+    set -e
+    sed -i.old 's;onlinedischarge_calibration.*;onlinedischarge_calibration=1;' /etc/nut/ups.conf
+    echo -e "\e[32m✓ Existing \"onlinedischarge_calibration\" line found and updated.\e[0m"
+  else
+    set -e
+    echo "onlinedischarge_calibration=1" >>/etc/nut/ups.conf
+    echo -e "\e[32m✓ Appended new \"onlinedischarge_calibration\" line \e[0m"
+  fi
+}
+
+check_postinit
+echo -e "\e[33mAdding new POSTINIT startup entry\e[0m"
+if ! new_postinit_id=$(midclt call initshutdownscript.create '{"type": "COMMAND", "command": "sed -i.old '"'"'1s;^;driverpath='"$dest_dir"'\\n;'"'"' /etc/nut/ups.conf && echo \"lbrb_log_delay_without_calibrating=1\\nlbrb_log_delay_sec=3\\nonlinedischarge_calibration=1\">>/etc/nut/ups.conf && upsdrvctl start","when": "POSTINIT","comment": "UPS update workaround"}' | jq '.id'); then
+  echo -e "\e[31mUnable to add new POSTINIT startup entry\e[0m"
+  exit 1
+fi
+echo -e "\e[32m✓ New POSTINIT startup entry ID $new_postinit_id added.\e[0m\n"
+echo -e "Changes are effective after every server restart.
+I can also reload the driver immediately WITHOUT restarting the server.\n"
+startnew_yesno=""
+read -r -p 'Would you like to do that? (y/N) : ' startnew_yesno
+if [[ "$startnew_yesno" == "Y" || "$startnew_yesno" == "y" ]]; then
+  modify_upsconf
   set -e
-  echo -e "\e[33mStopping old UPS driver\e[0m\n"
-  if ! upsdrvctl stop; then
-    echo -e "\e[31mFailed to stop UPS driver\e[0m"
+  echo -e "\e[33mStopping existing UPS driver\e[0m\n"
+  if ! upsdrvctl -D stop; then
+    echo -e "\e[31mFailed to stop existing UPS driver\e[0m"
     exit 1
   fi
-  for i in {5..1}; do
-    echo -en "\r\e[33mSleeping for 5 seconds: $i"
+  for i in {30..1}; do
+    echo -en "\r\e[33mWaiting 30 seconds for driver to auto reload: $i "
     sleep 1
   done
-  echo -e "\r\e[33mSleeping for 5 seconds: done\e[0m"
-  echo -e "\n\e[33mStarting new UPS driver\e[0m\n"
-  if ! upsdrvctl start; then
-    echo -e "\e[31mFailed to start new UPS driver\e[0m"
+  echo -e "\r\e[33mWaiting 30 seconds for driver to auto reload: done\e[0m"
+  if ! pgrep "usbhid-ups" >/dev/null; then
+    echo -e "\e[33mERROR\e\[0m: \"usbhid-ups\" UPS driver did not auto reload properly, exiting.\e[0m"
     exit 1
   fi
+  echo -e "\e[32m✓ UPS driver started.\e[0m"
 fi
 cleanup_and_exit

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-script_version=1.6.0
+script_version=1.6.1
 #
 # Copyright (C) 2026 iNVAR
 # TrueNAS UPS Workaround - A Bash script workaround for TrueNAS Scale/CE that
@@ -146,7 +146,7 @@ build_nut() {
     python3 \
     time \
     valgrind
-  echo "Beginning build process"
+  echo -e "\e[33mBeginning build process\e[0m"
   docker exec "$temp_container" git clone --branch "$desired_nut_version" https://github.com/networkupstools/nut /root/nut
   docker exec "$temp_container" /bin/sh -c "cd /root/nut; /root/nut/autogen.sh"
   docker exec "$temp_container" /bin/sh -c "cd /root/nut; \
@@ -178,7 +178,7 @@ build_nut() {
     --with-systemdshutdowndir=/lib/systemd/system-shutdown \
     --with-systemdtmpfilesdir=/usr/lib/tmpfiles.d"
   docker exec "$temp_container" /bin/sh -c "cd /root/nut; make -j $(nproc) all-drivers"
-  echo -e "\e[32mBuild completed\e[32m.\nCopying \"usbhid-ups\" driver from container to \"$dest_dir\"\n"
+  echo -e "\e[32m✓ Build completed\e[32m.\nCopying \"usbhid-ups\" driver from container to \"$dest_dir\"\n"
   docker cp "$temp_container":/root/nut/drivers/usbhid-ups "$dest_dir"
 }
 
@@ -186,8 +186,7 @@ check_postinit() {
   echo -e "\e[33mChecking if a POSTINIT entry exists already\e[0m"
   query_initshutdownscript=$(midclt call initshutdownscript.query '[["comment","=","UPS update workaround"],["enabled","=",true]]' '{"select": ["id","comment","command"]}')
   if [[ "$query_initshutdownscript" != '[]' ]]; then
-    echo -e "\e[31mWARNING\e[0m: \"UPS update workaround\" POSTINIT entries exist.\n"
-    echo -e "The following ($(jq 'length' <<<"$query_initshutdownscript")) were found:\n"
+    echo -e "\e[31mWARNING\e[0m: \"UPS update workaround\" POSTINIT entries exist.\nThe following ($(jq 'length' <<<"$query_initshutdownscript")) were found:\n"
     jq -c '.[] | {id, comment, command}' <<<"$query_initshutdownscript"
     continue_yesno=""
     echo -e "\nWhat would you like to do with them?
@@ -241,18 +240,17 @@ check_postinit() {
 }
 
 set -e
+
 script_header="TrueNAS UPS Workaround v$script_version
 Site: https://www.github.com/invario/truenas-ups-workaround
 Author: iNVAR
 "
 
-help="
-Usage: $0 [OPTION]... [FULL PATH TO DESTINATION]
+help="Usage: $0 [OPTION]... [FULL PATH TO DESTINATION]
   Valid switches:
 
-  -s, --skip-build      skip building ""usbhid-ups"" driver, only install config
-  -h, --help            show this screen
-"
+  -s, --skip-build      skip building \"usbhid-ups\" driver, only install config
+  -h, --help            show this screen"
 
 echo "$script_header"
 
@@ -260,13 +258,9 @@ trap cleanup_and_exit EXIT INT TERM
 
 update_check
 
-if [[ -z "$1" ]]; then
-  echo "$help"
-  trap - EXIT
-  exit 0
-fi
+dest_dir=""
 
-dest_dir=${!#}
+trap - EXIT INT TERM
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -281,41 +275,50 @@ while [[ $# -gt 0 ]]; do
     ;;
   --) # Manual end of options
     shift
+    if [[ $# -eq 0 ]]; then
+      break
+    fi
+    if [[ "$dest_dir" == "" && $# -eq 1 ]]; then
+      dest_dir=$1
+    else
+      echo -e "$help\n\n\e[31mERROR\e[0m: Too many arguments provided"
+      exit 1
+    fi
     break
     ;;
   *) # Handle unknown options or positional arguments
     if [[ "${1:0:1}" == "-" ]]; then
-      echo -e "Error, invalid switch: \"$1\""
-      echo "$help"
+      echo -e "$help\n\n\e[31mERROR\e[0m: Invalid switch: \"$1\""
       exit 1
     fi
+    dest_dir=$1
     POSITIONAL_ARGS+=("$1")
     shift
     ;;
   esac
 done
 
-if [[ ${#POSITIONAL_ARGS[@]} -eq 0 ]]; then
-  echo "Error, no destination directory provided"
-  echo "$help"
+if [[ ${#POSITIONAL_ARGS[@]} -eq 0 && "$dest_dir" == "" ]]; then
+  echo -e "$help\n\n\e[31mERROR\e[0m: No destination directory provided"
   exit 1
 fi
 
 if [[ ${#POSITIONAL_ARGS[@]} -gt 1 ]]; then
-  echo "Error, too many arguments provided"
-  echo "$help"
+  echo -e "$help\n\n\e[31mERROR\e[0m: Too many arguments provided"
   exit 1
 fi
 
 if [[ ! -f "/etc/debian_version" ]]; then
-  echo -e "Error, unable to determine Debian version. \"/etc/debian_version\" is missing/blank. Exiting."
+  echo -e "\e[31mERROR\e[0m: Unable to determine Debian version. \"/etc/debian_version\" is missing/blank. Exiting."
   exit 1
 fi
+
+trap cleanup_and_exit EXIT INT TERM
 
 continue_yesno=""
 if [[ "$skipbuild" ]]; then
   if [[ ! -f "$dest_dir/usbhid-ups" ]]; then
-    echo -e "\e[31mWARNING\e[0m: \"$dest_dir/usbhid-ups\" file doesn't exist and ""--skipbuild"" was specified.\n"
+    echo -e "\e[31mWARNING\e[0m: \"$dest_dir/usbhid-ups\" file doesn't exist and \"--skipbuild\" was specified.\n"
     read -r -p 'Continue anyway? (y/N) : ' continue_yesno
     if [[ "$continue_yesno" == "Y" || "$continue_yesno" == "y" ]]; then
       echo -e "Proceeding.\n"

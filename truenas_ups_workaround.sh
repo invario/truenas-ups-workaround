@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-script_version=1.6.1
+script_version=1.6.2
 #
 # Copyright (C) 2026 iNVAR
 # TrueNAS UPS Workaround - A Bash script workaround for TrueNAS Scale/CE that
@@ -150,7 +150,7 @@ build_nut() {
   docker exec "$temp_container" git clone --branch "$desired_nut_version" https://github.com/networkupstools/nut /root/nut
   docker exec "$temp_container" /bin/sh -c "cd /root/nut; /root/nut/autogen.sh"
   docker exec "$temp_container" /bin/sh -c "cd /root/nut; \
-    deb_host_multiarch=\$(/usr/bin/dpkg-architecture -qdeb_host_multiarch); \
+    deb_host_multiarch=\$(/usr/bin/dpkg-architecture -qDEB_HOST_MULTIARCH); \
     /root/nut/configure \
     --prefix= \
     --sysconfdir=/etc/nut \
@@ -177,7 +177,7 @@ build_nut() {
     --with-systemdsystemunitdir=/lib/systemd/system \
     --with-systemdshutdowndir=/lib/systemd/system-shutdown \
     --with-systemdtmpfilesdir=/usr/lib/tmpfiles.d"
-  docker exec "$temp_container" /bin/sh -c "cd /root/nut; make -j $(nproc) all-drivers"
+  docker exec "$temp_container" /bin/sh -c "cd /root/nut/drivers; make -j $(nproc) usbhid-ups"
   echo -e "\e[32m✓ Build completed\e[32m.\nCopying \"usbhid-ups\" driver from container to \"$dest_dir\"\n"
   docker cp "$temp_container":/root/nut/drivers/usbhid-ups "$dest_dir"
 }
